@@ -1,5 +1,7 @@
 import "katex/dist/katex.min.css";
-import { BlockMath } from "react-katex";
+import ReactKatex from "react-katex";
+
+const { BlockMath } = ReactKatex;
 
 interface Props {
   steps: string[];
