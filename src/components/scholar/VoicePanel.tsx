@@ -22,6 +22,7 @@ function VoicePanelContent() {
   const [startRequested, setStartRequested] = useState(false);
 
   const conversationRef = useRef<ReturnType<typeof useConversation> | null>(null);
+  const sentPdfContextRef = useRef<string | null>(null);
 
   const clientTools = useMemo(
     () =>
@@ -106,8 +107,10 @@ function VoicePanelContent() {
 
   useEffect(() => {
     if (!connected || !pdf) return;
+    if (sentPdfContextRef.current === pdf.name) return;
+    sentPdfContextRef.current = pdf.name;
     conversation.sendContextualUpdate(
-      `The user uploaded the PDF "${pdf.name}" (${pdf.pages} pages). Use this extracted paper text as the main context for the conversation:\n\n${pdf.text}`,
+      `The user uploaded the PDF "${pdf.name}" (${pdf.pages} pages). Use this extracted paper text as the main context for the conversation:\n\n${pdf.text.slice(0, 30_000)}`,
     );
   }, [connected, conversation, pdf]);
 
