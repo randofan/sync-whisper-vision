@@ -7,41 +7,38 @@ export const Route = createFileRoute("/setup")({
 });
 
 const VISUALIZE_SCHEMA = `{
+  "type": "client",
   "name": "visualize",
   "description": "Generate a chart, math derivation, diagram, table, or callout on the user's canvas. Returns instantly; the actual visual streams in via a contextual update a few seconds later. Call frequently — whenever you mention numbers, formulas, architectures, or comparisons.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "topic": { "type": "string", "description": "What to visualize, e.g. 'Simulated annealing energy landscape'" },
-      "hint":  { "type": "string", "description": "Optional preferred form: 'line chart', 'flow diagram', 'derivation', etc." }
-    },
-    "required": ["topic"]
-  }
+  "expects_response": false,
+  "response_timeout_secs": 5,
+  "parameters": [
+    { "id": "topic", "type": "string", "description": "What to visualize, e.g. 'Simulated annealing energy landscape'", "required": true, "value_type": "llm_prompt" },
+    { "id": "hint",  "type": "string", "description": "Optional preferred form: 'line chart', 'flow diagram', 'derivation', etc.", "required": false, "value_type": "llm_prompt" }
+  ]
 }`;
 
 const RESEARCH_SCHEMA = `{
+  "type": "client",
   "name": "research",
   "description": "Fire a background web + citation search. Returns instantly; findings stream back via contextual update. Use whenever the answer is outside the paper.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "query": { "type": "string", "description": "Search query, e.g. 'recent applications of simulated annealing in protein folding'" },
-      "scope": { "type": "string", "enum": ["web", "citations", "both"], "description": "Optional source scope" }
-    },
-    "required": ["query"]
-  }
+  "expects_response": false,
+  "response_timeout_secs": 5,
+  "parameters": [
+    { "id": "query", "type": "string", "description": "Search query, e.g. 'recent applications of simulated annealing in protein folding'", "required": true, "value_type": "llm_prompt" },
+    { "id": "scope", "type": "string", "description": "Optional source scope: 'web', 'citations', or 'both'", "required": false, "value_type": "llm_prompt" }
+  ]
 }`;
 
 const DEEP_THINK_SCHEMA = `{
+  "type": "client",
   "name": "deep_think",
   "description": "Heavy reasoning over the full paper for derivations, proofs, or multi-step analysis. Returns instantly; the analysis streams back via contextual update.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "question": { "type": "string", "description": "The reasoning task or question" }
-    },
-    "required": ["question"]
-  }
+  "expects_response": false,
+  "response_timeout_secs": 5,
+  "parameters": [
+    { "id": "question", "type": "string", "description": "The reasoning task or question", "required": true, "value_type": "llm_prompt" }
+  ]
 }`;
 
 function CodeBlock({ children }: { children: string }) {
