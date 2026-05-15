@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { useServerFn } from "@tanstack/react-start";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
+import { getElevenLabsConversationToken } from "@/lib/elevenlabs.functions";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
 import { toast } from "sonner";
@@ -79,6 +81,8 @@ function VoicePanelContent() {
   const connected = status === "connected";
   const connecting = status === "connecting" || startRequested;
 
+  const fetchToken = useServerFn(getElevenLabsConversationToken);
+
   const start = () => {
     const cleanedAgentId = agentId.trim();
     if (!cleanedAgentId) {
@@ -89,8 +93,9 @@ function VoicePanelContent() {
     void (async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        conversation.startSession({
-          agentId: cleanedAgentId,
+        const { token } = await fetchToken({ data: { agentId: cleanedAgentId } });
+        await conversation.startSession({
+          conversationToken: token,
           connectionType: "webrtc",
         });
       } catch (err) {
