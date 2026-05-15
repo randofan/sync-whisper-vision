@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { useServerFn } from "@tanstack/react-start";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
+import { getElevenLabsConversationToken } from "@/lib/elevenlabs.functions";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
 import { toast } from "sonner";
