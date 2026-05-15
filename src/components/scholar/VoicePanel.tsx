@@ -81,6 +81,8 @@ function VoicePanelContent() {
   const connected = status === "connected";
   const connecting = status === "connecting" || startRequested;
 
+  const fetchToken = useServerFn(getElevenLabsConversationToken);
+
   const start = () => {
     const cleanedAgentId = agentId.trim();
     if (!cleanedAgentId) {
@@ -91,8 +93,9 @@ function VoicePanelContent() {
     void (async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        conversation.startSession({
-          agentId: cleanedAgentId,
+        const { token } = await fetchToken({ data: { agentId: cleanedAgentId } });
+        await conversation.startSession({
+          conversationToken: token,
           connectionType: "webrtc",
         });
       } catch (err) {
