@@ -11,11 +11,19 @@ const VISUALIZE_SCHEMA = `{
   "name": "visualize",
   "description": "Generate a chart, math derivation, diagram, table, or callout on the user's canvas. Returns instantly; the actual visual streams in via a contextual update a few seconds later. Call frequently — whenever you mention numbers, formulas, architectures, or comparisons.",
   "expects_response": false,
-  "response_timeout_secs": 5,
+  "response_timeout_secs": 1,
   "parameters": [
-    { "id": "topic", "type": "string", "description": "What to visualize, e.g. 'Simulated annealing energy landscape'", "required": true, "value_type": "llm_prompt" },
-    { "id": "hint",  "type": "string", "description": "Optional preferred form: 'line chart', 'flow diagram', 'derivation', etc.", "required": false, "value_type": "llm_prompt" }
-  ]
+    { "id": "topic", "type": "string", "description": "What to visualize, e.g. 'Simulated annealing energy landscape'", "required": true, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" },
+    { "id": "hint", "type": "string", "description": "Optional preferred form: 'line chart', 'flow diagram', 'derivation', etc.", "required": false, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" }
+  ],
+  "dynamic_variables": { "dynamic_variable_placeholders": {} },
+  "assignments": [],
+  "disable_interruptions": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "response_mocks": []
 }`;
 
 const RESEARCH_SCHEMA = `{
@@ -23,11 +31,19 @@ const RESEARCH_SCHEMA = `{
   "name": "research",
   "description": "Fire a background web + citation search. Returns instantly; findings stream back via contextual update. Use whenever the answer is outside the paper.",
   "expects_response": false,
-  "response_timeout_secs": 5,
+  "response_timeout_secs": 1,
   "parameters": [
-    { "id": "query", "type": "string", "description": "Search query, e.g. 'recent applications of simulated annealing in protein folding'", "required": true, "value_type": "llm_prompt" },
-    { "id": "scope", "type": "string", "description": "Optional source scope: 'web', 'citations', or 'both'", "required": false, "value_type": "llm_prompt" }
-  ]
+    { "id": "query", "type": "string", "description": "Search query, e.g. 'recent applications of simulated annealing in protein folding'", "required": true, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" },
+    { "id": "scope", "type": "string", "description": "Optional source scope: 'web', 'citations', or 'both'", "required": false, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" }
+  ],
+  "dynamic_variables": { "dynamic_variable_placeholders": {} },
+  "assignments": [],
+  "disable_interruptions": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "response_mocks": []
 }`;
 
 const DEEP_THINK_SCHEMA = `{
@@ -35,10 +51,18 @@ const DEEP_THINK_SCHEMA = `{
   "name": "deep_think",
   "description": "Heavy reasoning over the full paper for derivations, proofs, or multi-step analysis. Returns instantly; the analysis streams back via contextual update.",
   "expects_response": false,
-  "response_timeout_secs": 5,
+  "response_timeout_secs": 1,
   "parameters": [
-    { "id": "question", "type": "string", "description": "The reasoning task or question", "required": true, "value_type": "llm_prompt" }
-  ]
+    { "id": "question", "type": "string", "description": "The reasoning task or question", "required": true, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" }
+  ],
+  "dynamic_variables": { "dynamic_variable_placeholders": {} },
+  "assignments": [],
+  "disable_interruptions": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "response_mocks": []
 }`;
 
 function CodeBlock({ children }: { children: string }) {
