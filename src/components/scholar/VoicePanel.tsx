@@ -19,9 +19,10 @@ function VoicePanelContent() {
   const agentId = useScholarStore((s) => s.agentId);
   const appendTranscript = useScholarStore((s) => s.appendTranscript);
   const transcript = useScholarStore((s) => s.transcript);
-  const [starting, setStarting] = useState(false);
+  const [startRequested, setStartRequested] = useState(false);
 
   const conversationRef = useRef<ReturnType<typeof useConversation> | null>(null);
+  const sentPdfContextRef = useRef<string | null>(null);
 
   const clientTools = useMemo(
     () =>
@@ -35,18 +36,37 @@ function VoicePanelContent() {
 
   const conversation = useConversation({
     clientTools,
-    onConnect: () => toast.success("Connected to Scholar"),
-    onDisconnect: () => toast.message("Conversation ended"),
-    onError: (err) => {
-      console.error("convo error", err);
-      toast.error("Voice agent error");
+    onConnect: () => {
+      setStartRequested(false);
+      toast.success("Connected to Scholar");
     },
-    onMessage: (m: { source?: string; message?: string }) => {
-      if (m?.message) {
+    onDisconnect: () => {
+      setStartRequested(false);
+      toast.message("Conversation ended");
+    },
+    onError: (message, error) => {
+      setStartRequested(false);
+      console.error("convo error", message, error);
+      toast.error(typeof message === "string" ? message : "Voice agent error");
+    },
+    onMessage: (m: {
+      type?: string;
+      source?: string;
+      message?: string;
+      user_transcription_event?: { user_transcript?: string };
+      agent_response_event?: { agent_response?: string };
+      agent_response_correction_event?: { corrected_agent_response?: string };
+    }) => {
+      const userText = m.user_transcription_event?.user_transcript;
+      const agentText =
+        m.agent_response_event?.agent_response ??
+        m.agent_response_correction_event?.corrected_agent_response;
+      const text = userText ?? agentText ?? m.message;
+      if (text) {
         appendTranscript({
           id: `${Date.now()}-${Math.random()}`,
-          role: m.source === "user" ? "user" : "agent",
-          text: m.message,
+          role: userText || m.source === "user" ? "user" : "agent",
+          text,
           ts: Date.now(),
         });
       }
@@ -57,53 +77,42 @@ function VoicePanelContent() {
   const status = conversation.status;
   const isSpeaking = conversation.isSpeaking;
   const connected = status === "connected";
+  const connecting = status === "connecting" || startRequested;
 
-  const start = async () => {
-    if (!agentId) {
+  const start = () => {
+    const cleanedAgentId = agentId.trim();
+    if (!cleanedAgentId) {
       toast.error("Set an ElevenLabs Agent ID first");
       return;
     }
-    setStarting(true);
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-      const tokenRes = await fetch("/api/elevenlabs-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId,
-          pdfTitle: pdf?.name ?? "Untitled paper",
-          pdfText: pdf?.text ?? "",
-        }),
-      });
-      const tokenJson = (await tokenRes.json()) as {
-        token?: string;
-        systemPrompt?: string;
-        firstMessage?: string;
-        error?: string;
-      };
-      if (!tokenJson.token) throw new Error(tokenJson.error ?? "token failed");
-
-      await conversation.startSession({
-        conversationToken: tokenJson.token,
-        connectionType: "webrtc",
-        overrides: {
-          agent: {
-            prompt: tokenJson.systemPrompt ? { prompt: tokenJson.systemPrompt } : undefined,
-            firstMessage: tokenJson.firstMessage,
-          },
-        },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to start";
-      toast.error(msg);
-    } finally {
-      setStarting(false);
-    }
+    setStartRequested(true);
+    void (async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        conversation.startSession({
+          agentId: cleanedAgentId,
+          connectionType: "webrtc",
+        });
+      } catch (err) {
+        setStartRequested(false);
+        const msg = err instanceof Error ? err.message : "Failed to start";
+        toast.error(msg);
+      }
+    })();
   };
 
   const stop = async () => {
     await conversation.endSession();
   };
+
+  useEffect(() => {
+    if (!connected || !pdf) return;
+    if (sentPdfContextRef.current === pdf.name) return;
+    sentPdfContextRef.current = pdf.name;
+    conversation.sendContextualUpdate(
+      `The user uploaded the PDF "${pdf.name}" (${pdf.pages} pages). Use this extracted paper text as the main context for the conversation:\n\n${pdf.text.slice(0, 30_000)}`,
+    );
+  }, [connected, conversation, pdf]);
 
   useEffect(() => () => { try { void conversation.endSession(); } catch { /* noop */ } }, []); // eslint-disable-line
 
@@ -139,15 +148,15 @@ function VoicePanelContent() {
             <Button
               size="sm"
               onClick={start}
-              disabled={starting || !pdf || !agentId}
+              disabled={connecting || !pdf || !agentId.trim()}
               className="ring-glow"
             >
-              {starting ? (
+              {connecting ? (
                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Phone className="mr-1.5 h-3.5 w-3.5" />
               )}
-              Start
+              {connecting ? "Connecting" : "Start"}
             </Button>
           )}
         </div>
