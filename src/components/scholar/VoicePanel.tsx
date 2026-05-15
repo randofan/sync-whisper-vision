@@ -19,6 +19,24 @@ ${pdf.text.slice(0, 30_000)}
 """`;
 }
 
+export function buildScholarVoiceSessionOptions(
+  signedUrl: string,
+  pdf: { name: string; pages: number; text: string } | null,
+) {
+  return {
+    signedUrl,
+    connectionType: "websocket" as const,
+    overrides: pdf
+      ? {
+          agent: {
+            prompt: { prompt: buildScholarPrompt(pdf) },
+            firstMessage: `I've read "${pdf.name}". What would you like to dig into first?`,
+          },
+        }
+      : undefined,
+  };
+}
+
 export function VoicePanel() {
   return (
     <ConversationProvider>
@@ -105,18 +123,7 @@ function VoicePanelContent() {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
         const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
-        await conversation.startSession({
-          signedUrl,
-          connectionType: "websocket",
-          overrides: pdf
-            ? {
-                agent: {
-                  prompt: { prompt: buildScholarPrompt(pdf) },
-                  firstMessage: `I've read "${pdf.name}". What would you like to dig into first?`,
-                },
-              }
-            : undefined,
-        });
+        await conversation.startSession(buildScholarVoiceSessionOptions(signedUrl, pdf));
       } catch (err) {
         setStartRequested(false);
         const msg = err instanceof Error ? err.message : "Failed to start";
