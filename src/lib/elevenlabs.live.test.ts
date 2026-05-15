@@ -51,7 +51,10 @@ async function openConversationMetadata(signedUrl: string) {
 }
 
 describe("ElevenLabs live connector", () => {
-  it.skipIf(!process.env.ELEVENLABS_API_KEY_1 && !process.env.ELEVENLABS_API_KEY)(
+  it.skipIf(
+    process.env.RUN_ELEVENLABS_LIVE_TEST !== "true" ||
+      (!process.env.ELEVENLABS_API_KEY_1 && !process.env.ELEVENLABS_API_KEY),
+  )(
     "opens an authenticated signed WebSocket conversation",
     async () => {
       const signedUrl = await fetchElevenLabsConversationSignedUrl(AGENT_ID);
