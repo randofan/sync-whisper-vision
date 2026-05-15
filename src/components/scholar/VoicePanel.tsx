@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useConversation } from "@elevenlabs/react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,14 @@ import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
 import { toast } from "sonner";
 
 export function VoicePanel() {
+  return (
+    <ConversationProvider>
+      <VoicePanelContent />
+    </ConversationProvider>
+  );
+}
+
+function VoicePanelContent() {
   const pdf = useScholarStore((s) => s.pdf);
   const agentId = useScholarStore((s) => s.agentId);
   const appendTranscript = useScholarStore((s) => s.appendTranscript);
