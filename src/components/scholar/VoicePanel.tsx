@@ -3,39 +3,11 @@ import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useServerFn } from "@tanstack/react-start";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
+import { buildScholarVoiceSessionOptions } from "@/lib/scholar/voice-session";
 import { getElevenLabsConversationSignedUrl } from "@/lib/elevenlabs.functions";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
 import { toast } from "sonner";
-
-export function buildScholarPrompt(pdf: { name: string; pages: number; text: string }) {
-  return `You are "Scholar", a peer-level technical research companion. The user uploaded the PDF "${pdf.name}" (${pdf.pages} pages). Use the extracted paper text below as the primary source of truth.
-
-Speak naturally and concisely. Use client tools early whenever a visual, citation lookup, or deep derivation would help. If the paper text is insufficient, say what is missing.
-
-PAPER CONTENT:
-"""
-${pdf.text.slice(0, 30_000)}
-"""`;
-}
-
-export function buildScholarVoiceSessionOptions(
-  signedUrl: string,
-  pdf: { name: string; pages: number; text: string } | null,
-) {
-  return {
-    signedUrl,
-    connectionType: "websocket" as const,
-    overrides: pdf
-      ? {
-          agent: {
-            prompt: { prompt: buildScholarPrompt(pdf) },
-            firstMessage: `I've read "${pdf.name}". What would you like to dig into first?`,
-          },
-        }
-      : undefined,
-  };
-}
 
 export function VoicePanel() {
   return (
