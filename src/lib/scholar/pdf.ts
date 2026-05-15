@@ -5,9 +5,10 @@ export async function extractPdfText(
   file: File,
   onProgress?: (page: number, total: number) => void,
 ): Promise<{ text: string; pages: number }> {
-  const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
+  const pdfjs = await import("pdfjs-dist");
   // Use a worker URL bundled by Vite.
-  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default;
+  // @ts-expect-error - vite ?url import
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default as string;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
   const buf = await file.arrayBuffer();
