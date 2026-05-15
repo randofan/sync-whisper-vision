@@ -99,9 +99,14 @@ interface ScholarState {
   reset: () => void;
 }
 
+const DEFAULT_AGENT_ID = "agent_1701krmxt8bve3svarx3wz0kj1wj";
+
 export const useScholarStore = create<ScholarState>((set) => ({
   pdf: null,
-  agentId: typeof window !== "undefined" ? localStorage.getItem("scholar_agent_id") ?? "" : "",
+  agentId:
+    typeof window !== "undefined"
+      ? localStorage.getItem("scholar_agent_id") ?? DEFAULT_AGENT_ID
+      : DEFAULT_AGENT_ID,
   setAgentId: (id) => {
     if (typeof window !== "undefined") localStorage.setItem("scholar_agent_id", id);
     set({ agentId: id });
