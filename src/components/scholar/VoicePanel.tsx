@@ -91,18 +91,6 @@ function VoicePanelContent() {
         conversation.startSession({
           agentId: cleanedAgentId,
           connectionType: "webrtc",
-          overrides: {
-            agent: {
-              prompt: pdf?.text
-                ? {
-                    prompt: `You are Scholar, a peer-level technical research companion. The user uploaded "${pdf.name}". Use this paper as the primary source of truth, stay concise, and call the configured client tools when visuals, research, or deeper reasoning would help.\n\nPAPER CONTENT:\n"""\n${pdf.text}\n"""`,
-                  }
-                : undefined,
-              firstMessage: pdf?.name
-                ? `I've read "${pdf.name}". What would you like to dig into first?`
-                : undefined,
-            },
-          },
         });
       } catch (err) {
         setStartRequested(false);
@@ -115,6 +103,13 @@ function VoicePanelContent() {
   const stop = async () => {
     await conversation.endSession();
   };
+
+  useEffect(() => {
+    if (!connected || !pdf) return;
+    conversation.sendContextualUpdate(
+      `The user uploaded the PDF "${pdf.name}" (${pdf.pages} pages). Use this extracted paper text as the main context for the conversation:\n\n${pdf.text}`,
+    );
+  }, [connected, conversation, pdf]);
 
   useEffect(() => () => { try { void conversation.endSession(); } catch { /* noop */ } }, []); // eslint-disable-line
 
