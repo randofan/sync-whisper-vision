@@ -9,12 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as SessionRouteImport } from './routes/session'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
 import { Route as ApiPdfQaRouteImport } from './routes/api/pdf-qa'
 import { Route as ApiIllustrateRouteImport } from './routes/api/illustrate'
 import { Route as ApiElevenlabsTokenRouteImport } from './routes/api/elevenlabs-token'
 
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionRoute = SessionRouteImport.update({
+  id: '/session',
+  path: '/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,6 +55,8 @@ const ApiElevenlabsTokenRoute = ApiElevenlabsTokenRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/session': typeof SessionRoute
+  '/setup': typeof SetupRoute
   '/api/elevenlabs-token': typeof ApiElevenlabsTokenRoute
   '/api/illustrate': typeof ApiIllustrateRoute
   '/api/pdf-qa': typeof ApiPdfQaRoute
@@ -50,6 +64,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/session': typeof SessionRoute
+  '/setup': typeof SetupRoute
   '/api/elevenlabs-token': typeof ApiElevenlabsTokenRoute
   '/api/illustrate': typeof ApiIllustrateRoute
   '/api/pdf-qa': typeof ApiPdfQaRoute
@@ -58,6 +74,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/session': typeof SessionRoute
+  '/setup': typeof SetupRoute
   '/api/elevenlabs-token': typeof ApiElevenlabsTokenRoute
   '/api/illustrate': typeof ApiIllustrateRoute
   '/api/pdf-qa': typeof ApiPdfQaRoute
@@ -67,6 +85,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/session'
+    | '/setup'
     | '/api/elevenlabs-token'
     | '/api/illustrate'
     | '/api/pdf-qa'
@@ -74,6 +94,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/session'
+    | '/setup'
     | '/api/elevenlabs-token'
     | '/api/illustrate'
     | '/api/pdf-qa'
@@ -81,6 +103,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/session'
+    | '/setup'
     | '/api/elevenlabs-token'
     | '/api/illustrate'
     | '/api/pdf-qa'
@@ -89,6 +113,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SessionRoute: typeof SessionRoute
+  SetupRoute: typeof SetupRoute
   ApiElevenlabsTokenRoute: typeof ApiElevenlabsTokenRoute
   ApiIllustrateRoute: typeof ApiIllustrateRoute
   ApiPdfQaRoute: typeof ApiPdfQaRoute
@@ -97,6 +123,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session': {
+      id: '/session'
+      path: '/session'
+      fullPath: '/session'
+      preLoaderRoute: typeof SessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -137,6 +177,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SessionRoute: SessionRoute,
+  SetupRoute: SetupRoute,
   ApiElevenlabsTokenRoute: ApiElevenlabsTokenRoute,
   ApiIllustrateRoute: ApiIllustrateRoute,
   ApiPdfQaRoute: ApiPdfQaRoute,
@@ -145,3 +187,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

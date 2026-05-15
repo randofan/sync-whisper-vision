@@ -97,7 +97,7 @@ export function VoicePanel() {
     await conversation.endSession();
   };
 
-  useEffect(() => () => { void conversation.endSession().catch(() => {}); }, []); // eslint-disable-line
+  useEffect(() => () => { try { void conversation.endSession(); } catch { /* noop */ } }, []); // eslint-disable-line
 
   return (
     <div className="flex h-full flex-col">
