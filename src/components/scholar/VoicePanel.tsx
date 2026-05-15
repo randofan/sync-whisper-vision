@@ -3,7 +3,8 @@ import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useServerFn } from "@tanstack/react-start";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
-import { getElevenLabsConversationToken } from "@/lib/elevenlabs.functions";
+import { buildScholarVoiceSessionOptions } from "@/lib/scholar/voice-session";
+import { getElevenLabsConversationSignedUrl } from "@/lib/elevenlabs.functions";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
 import { toast } from "sonner";
@@ -81,7 +82,7 @@ function VoicePanelContent() {
   const connected = status === "connected";
   const connecting = status === "connecting" || startRequested;
 
-  const fetchToken = useServerFn(getElevenLabsConversationToken);
+  const fetchSignedUrl = useServerFn(getElevenLabsConversationSignedUrl);
 
   const start = () => {
     const cleanedAgentId = agentId.trim();
@@ -93,11 +94,8 @@ function VoicePanelContent() {
     void (async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        const { token } = await fetchToken({ data: { agentId: cleanedAgentId } });
-        await conversation.startSession({
-          conversationToken: token,
-          connectionType: "webrtc",
-        });
+        const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
+        await conversation.startSession(buildScholarVoiceSessionOptions(signedUrl, pdf));
       } catch (err) {
         setStartRequested(false);
         const msg = err instanceof Error ? err.message : "Failed to start";
