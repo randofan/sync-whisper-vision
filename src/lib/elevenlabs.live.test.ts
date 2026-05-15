@@ -5,7 +5,7 @@ const AGENT_ID = "agent_1701krmxt8bve3svarx3wz0kj1wj";
 
 async function openConversationMetadata(signedUrl: string) {
   const separator = signedUrl.includes("?") ? "&" : "?";
-  const socket = new WebSocket(`${signedUrl}${separator}source=lovable_test&version=1.0.0`, ["convai"]);
+  const socket = new WebSocket(`${signedUrl}${separator}source=react_sdk&version=1.6.0`, ["convai"]);
 
   return await new Promise<Record<string, unknown>>((resolve, reject) => {
     const timeout = setTimeout(() => {
