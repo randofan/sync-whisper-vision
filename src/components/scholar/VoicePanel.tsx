@@ -111,15 +111,6 @@ function VoicePanelContent() {
       }
     })();
   };
-        },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to start";
-      toast.error(msg);
-    } finally {
-      setStarting(false);
-    }
-  };
 
   const stop = async () => {
     await conversation.endSession();
@@ -159,15 +150,15 @@ function VoicePanelContent() {
             <Button
               size="sm"
               onClick={start}
-              disabled={starting || !pdf || !agentId}
+              disabled={connecting || !pdf || !agentId.trim()}
               className="ring-glow"
             >
-              {starting ? (
+              {connecting ? (
                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Phone className="mr-1.5 h-3.5 w-3.5" />
               )}
-              Start
+              {connecting ? "Connecting" : "Start"}
             </Button>
           )}
         </div>
