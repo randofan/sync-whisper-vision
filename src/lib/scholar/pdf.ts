@@ -7,8 +7,8 @@ export async function extractPdfText(
 ): Promise<{ text: string; pages: number }> {
   const pdfjs = await import("pdfjs-dist");
   // Use a worker URL bundled by Vite.
-  // @ts-expect-error - vite ?url import
-  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.mjs?url")).default as string;
+  const workerMod = (await import("pdfjs-dist/build/pdf.worker.mjs?url")) as { default: string };
+  const workerUrl = workerMod.default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
   const buf = await file.arrayBuffer();
