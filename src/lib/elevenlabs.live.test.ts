@@ -50,6 +50,78 @@ async function openConversationMetadata(signedUrl: string) {
   });
 }
 
+async function openSeededConversation(signedUrl: string) {
+  const separator = signedUrl.includes("?") ? "&" : "?";
+  const socket = new WebSocket(`${signedUrl}${separator}source=react_sdk&version=1.6.0`, ["convai"]);
+
+  return await new Promise<{ metadata: Record<string, unknown>; response: string }>((resolve, reject) => {
+    let metadata: Record<string, unknown> | null = null;
+    const timeout = setTimeout(() => {
+      socket.close();
+      reject(new Error("Timed out waiting for seeded ElevenLabs conversation response"));
+    }, 15_000);
+
+    socket.addEventListener(
+      "open",
+      () => {
+        socket.send(JSON.stringify({ type: "conversation_initiation_client_data" }));
+      },
+      { once: true },
+    );
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {
+        type?: string;
+        conversation_initiation_metadata_event?: Record<string, unknown>;
+        agent_response_event?: { agent_response?: string };
+        ping_event?: { event_id?: number };
+      };
+
+      if (message.type === "conversation_initiation_metadata") {
+        metadata = message.conversation_initiation_metadata_event ?? {};
+        socket.send(
+          JSON.stringify({
+            type: "contextual_update",
+            text: "SESSION CONTEXT: The uploaded PDF is live-test.pdf. PDF content marker: TEST_CONTEXT_ABC.",
+            context_id: "pdf:live-test.pdf",
+          }),
+        );
+        socket.send(JSON.stringify({ type: "user_message", text: "What marker is in the uploaded PDF context?" }));
+        return;
+      }
+
+      if (message.type === "ping") {
+        socket.send(JSON.stringify({ type: "pong", event_id: message.ping_event?.event_id }));
+        return;
+      }
+
+      const response = message.agent_response_event?.agent_response;
+      if (metadata && response?.includes("TEST_CONTEXT_ABC")) {
+        clearTimeout(timeout);
+        socket.close(1000, "live seeded test complete");
+        resolve({ metadata, response });
+      }
+    });
+    socket.addEventListener(
+      "error",
+      () => {
+        clearTimeout(timeout);
+        reject(new Error("ElevenLabs seeded WebSocket connection failed"));
+      },
+      { once: true },
+    );
+    socket.addEventListener(
+      "close",
+      (event) => {
+        if (event.code !== 1000) {
+          clearTimeout(timeout);
+          reject(new Error(`ElevenLabs seeded WebSocket closed early [${event.code}]: ${event.reason}`));
+        }
+      },
+      { once: true },
+    );
+  });
+}
+
 describe("ElevenLabs live connector", () => {
   it.skipIf(
     process.env.RUN_ELEVENLABS_LIVE_TEST !== "true" ||
@@ -64,6 +136,21 @@ describe("ElevenLabs live connector", () => {
       expect(message.conversation_initiation_metadata_event).toMatchObject({
         conversation_id: expect.stringMatching(/^conv_/),
       });
+    },
+    20_000,
+  );
+
+  it.skipIf(
+    process.env.RUN_ELEVENLABS_LIVE_TEST !== "true" ||
+      (!process.env.ELEVENLABS_API_KEY_1 && !process.env.ELEVENLABS_API_KEY),
+  )(
+    "keeps the session open after PDF context is seeded with a contextual update",
+    async () => {
+      const signedUrl = await fetchElevenLabsConversationSignedUrl(AGENT_ID);
+      const seeded = await openSeededConversation(signedUrl);
+
+      expect(seeded.metadata).toMatchObject({ conversation_id: expect.stringMatching(/^conv_/) });
+      expect(seeded.response).toContain("TEST_CONTEXT_ABC");
     },
     20_000,
   );

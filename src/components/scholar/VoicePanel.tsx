@@ -3,7 +3,7 @@ import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useServerFn } from "@tanstack/react-start";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
-import { buildScholarVoiceSessionOptions } from "@/lib/scholar/voice-session";
+import { buildScholarContextUpdate, buildScholarVoiceSessionOptions } from "@/lib/scholar/voice-session";
 import { getElevenLabsConversationSignedUrl } from "@/lib/elevenlabs.functions";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
@@ -95,7 +95,16 @@ function VoicePanelContent() {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
         const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
-        await conversation.startSession(buildScholarVoiceSessionOptions(signedUrl, pdf));
+        conversation.startSession({
+          ...buildScholarVoiceSessionOptions(signedUrl),
+          onConversationCreated: (liveConversation) => {
+            if (!pdf) return;
+            sentPdfContextRef.current = pdf.name;
+            liveConversation.sendContextualUpdate(buildScholarContextUpdate(pdf), {
+              contextId: `pdf:${pdf.name}`,
+            });
+          },
+        });
       } catch (err) {
         setStartRequested(false);
         const msg = err instanceof Error ? err.message : "Failed to start";
@@ -112,9 +121,7 @@ function VoicePanelContent() {
     if (!connected || !pdf) return;
     if (sentPdfContextRef.current === pdf.name) return;
     sentPdfContextRef.current = pdf.name;
-    conversation.sendContextualUpdate(
-      `The user uploaded the PDF "${pdf.name}" (${pdf.pages} pages). Use this extracted paper text as the main context for the conversation:\n\n${pdf.text.slice(0, 30_000)}`,
-    );
+    conversation.sendContextualUpdate(buildScholarContextUpdate(pdf), { contextId: `pdf:${pdf.name}` });
   }, [connected, conversation, pdf]);
 
   useEffect(() => () => { try { void conversation.endSession(); } catch { /* noop */ } }, []); // eslint-disable-line
