@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export type CanvasItemKind = "chart" | "math" | "diagram" | "table" | "callout";
 
