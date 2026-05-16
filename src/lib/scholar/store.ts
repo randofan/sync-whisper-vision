@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export type CanvasItemKind = "chart" | "math" | "diagram" | "table" | "callout";
 
@@ -101,54 +102,59 @@ interface ScholarState {
 
 const DEFAULT_AGENT_ID = "agent_1701krmxt8bve3svarx3wz0kj1wj";
 
-export const useScholarStore = create<ScholarState>((set) => ({
-  pdf: null,
-  agentId:
-    typeof window !== "undefined"
-      ? localStorage.getItem("scholar_agent_id") ?? DEFAULT_AGENT_ID
-      : DEFAULT_AGENT_ID,
-  setAgentId: (id) => {
-    if (typeof window !== "undefined") localStorage.setItem("scholar_agent_id", id);
-    set({ agentId: id });
-  },
-  setPdf: (pdf) => set({ pdf }),
+export const useScholarStore = create<ScholarState>()(
+  persist(
+    (set) => ({
+      pdf: null,
+      agentId: DEFAULT_AGENT_ID,
+      setAgentId: (id) => set({ agentId: id }),
+      setPdf: (pdf) => set({ pdf }),
 
-  canvasItems: [],
-  upsertCanvas: (item) =>
-    set((s) => {
-      const idx = s.canvasItems.findIndex((c) => c.id === item.id);
-      if (idx >= 0) {
-        const next = [...s.canvasItems];
-        next[idx] = item;
-        return { canvasItems: next };
-      }
-      return { canvasItems: [item, ...s.canvasItems] };
+      canvasItems: [],
+      upsertCanvas: (item) =>
+        set((s) => {
+          const idx = s.canvasItems.findIndex((c) => c.id === item.id);
+          if (idx >= 0) {
+            const next = [...s.canvasItems];
+            next[idx] = item;
+            return { canvasItems: next };
+          }
+          return { canvasItems: [item, ...s.canvasItems] };
+        }),
+      patchCanvas: (id, patch) =>
+        set((s) => ({
+          canvasItems: s.canvasItems.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        })),
+
+      researchItems: [],
+      upsertResearch: (item) =>
+        set((s) => {
+          const idx = s.researchItems.findIndex((c) => c.id === item.id);
+          if (idx >= 0) {
+            const next = [...s.researchItems];
+            next[idx] = item;
+            return { researchItems: next };
+          }
+          return { researchItems: [item, ...s.researchItems] };
+        }),
+      patchResearch: (id, patch) =>
+        set((s) => ({
+          researchItems: s.researchItems.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        })),
+
+      transcript: [],
+      appendTranscript: (entry) =>
+        set((s) => ({ transcript: [...s.transcript, entry].slice(-200) })),
+
+      reset: () =>
+        set({ pdf: null, canvasItems: [], researchItems: [], transcript: [] }),
     }),
-  patchCanvas: (id, patch) =>
-    set((s) => ({
-      canvasItems: s.canvasItems.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    })),
-
-  researchItems: [],
-  upsertResearch: (item) =>
-    set((s) => {
-      const idx = s.researchItems.findIndex((c) => c.id === item.id);
-      if (idx >= 0) {
-        const next = [...s.researchItems];
-        next[idx] = item;
-        return { researchItems: next };
-      }
-      return { researchItems: [item, ...s.researchItems] };
-    }),
-  patchResearch: (id, patch) =>
-    set((s) => ({
-      researchItems: s.researchItems.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    })),
-
-  transcript: [],
-  appendTranscript: (entry) =>
-    set((s) => ({ transcript: [...s.transcript, entry].slice(-200) })),
-
-  reset: () =>
-    set({ pdf: null, canvasItems: [], researchItems: [], transcript: [] }),
-}));
+    {
+      name: "scholar-store",
+      storage: createJSONStorage(() =>
+        typeof window !== "undefined" ? window.sessionStorage : (undefined as unknown as Storage),
+      ),
+      partialize: (s) => ({ pdf: s.pdf, agentId: s.agentId }),
+    },
+  ),
+);
