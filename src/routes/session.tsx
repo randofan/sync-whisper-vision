@@ -17,7 +17,7 @@ export const Route = createFileRoute("/session")({
 function SessionPage() {
   const pdf = useScholarStore((s) => s.pdf);
   const navigate = useNavigate();
-  const [hydrated, setHydrated] = useEffect ? [true, () => {}] as const : [true, () => {}] as const;
+  
 
   useEffect(() => {
     // Wait one tick for zustand/persist sessionStorage hydration before redirecting.
