@@ -7,7 +7,7 @@ import {
 } from "./voice-session";
 
 describe("Scholar voice session options", () => {
-  it("uses authenticated WebSocket sessions with signed URLs", () => {
+  it("passes prompt and first-message overrides through signed WebSocket sessions", () => {
     const options = buildScholarVoiceSessionOptions("wss://api.elevenlabs.io/v1/convai/conversation?signed=1", {
       name: "paper.pdf",
       pages: 7,
@@ -35,7 +35,7 @@ describe("Scholar voice session options", () => {
     expect(prompt.length).toBeLessThan(31_000);
   });
 
-  it("builds PDF context as a contextual update instead of rejected agent overrides", () => {
+  it("also builds PDF context as a contextual update after connect", () => {
     const context = buildScholarContextUpdate({ name: "paper.pdf", pages: 2, text: "TEST_CONTEXT_ABC" });
 
     expect(context).toContain("session instructions and uploaded PDF context");
