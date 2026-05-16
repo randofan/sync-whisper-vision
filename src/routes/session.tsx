@@ -17,12 +17,17 @@ export const Route = createFileRoute("/session")({
 function SessionPage() {
   const pdf = useScholarStore((s) => s.pdf);
   const navigate = useNavigate();
+  const [hydrated, setHydrated] = useEffect ? [true, () => {}] as const : [true, () => {}] as const;
 
   useEffect(() => {
-    if (!pdf) navigate({ to: "/" });
-  }, [pdf, navigate]);
+    // Wait one tick for zustand/persist sessionStorage hydration before redirecting.
+    const t = setTimeout(() => {
+      if (!useScholarStore.getState().pdf) navigate({ to: "/" });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [navigate]);
 
-  if (!pdf) return null;
+  if (!pdf) return <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
 
   return (
     <div className="flex h-screen flex-col">
