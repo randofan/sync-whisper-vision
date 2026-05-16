@@ -15,17 +15,13 @@ ${pdf.text.slice(0, 30_000)}
 """`;
 }
 
-export function buildScholarVoiceSessionOptions(signedUrl: string, pdf: ScholarPdfContext | null) {
+export function buildScholarContextUpdate(pdf: ScholarPdfContext) {
+  return `Treat this contextual update as the session instructions and uploaded PDF context for the conversation.\n\n${buildScholarPrompt(pdf)}`;
+}
+
+export function buildScholarVoiceSessionOptions(signedUrl: string) {
   return {
     signedUrl,
     connectionType: "websocket" as const,
-    overrides: pdf
-      ? {
-          agent: {
-            prompt: { prompt: buildScholarPrompt(pdf) },
-            firstMessage: `I've read "${pdf.name}". What would you like to dig into first?`,
-          },
-        }
-      : undefined,
   };
 }
