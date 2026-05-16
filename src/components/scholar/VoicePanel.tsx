@@ -43,14 +43,23 @@ function VoicePanelContent() {
       setStartRequested(false);
       toast.success("Connected to Scholar");
     },
-    onDisconnect: () => {
+    onDisconnect: (details) => {
       setStartRequested(false);
+      if (details?.reason === "error") {
+        console.error("convo disconnected", details);
+        toast.error(details.message || "Voice agent disconnected");
+        return;
+      }
       toast.message("Conversation ended");
     },
     onError: (message, error) => {
       setStartRequested(false);
       console.error("convo error", message, error);
       toast.error(typeof message === "string" ? message : "Voice agent error");
+    },
+    onUnhandledClientToolCall: (toolCall) => {
+      console.error("unhandled ElevenLabs client tool", toolCall);
+      toast.error(`Unhandled client tool: ${toolCall.tool_name}`);
     },
     onMessage: (m: {
       type?: string;
@@ -93,12 +102,12 @@ function VoicePanelContent() {
     setStartRequested(true);
     void (async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!pdf) throw new Error("Upload a PDF before starting the voice agent");
         const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
         conversation.startSession({
-          ...buildScholarVoiceSessionOptions(signedUrl),
+          ...buildScholarVoiceSessionOptions(signedUrl, pdf),
+          clientTools,
           onConversationCreated: (liveConversation) => {
-            if (!pdf) return;
             sentPdfContextRef.current = pdf.name;
             liveConversation.sendContextualUpdate(buildScholarContextUpdate(pdf), {
               contextId: `pdf:${pdf.name}`,
