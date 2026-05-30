@@ -130,18 +130,21 @@ export function buildClientTools(host: ToolHost) {
             ok?: boolean;
             summary?: string;
             keyPoints?: string[];
-            citations?: { title: string; url: string; snippet?: string }[];
             error?: string;
           };
           if (!json.ok) throw new Error(json.error ?? "research failed");
           store().patchResearch(id, {
             status: "ready",
             summary: json.summary,
-            citations: json.citations,
           });
-          const top = json.citations?.[0];
+          // Stream the FULL briefing back as grounding for the voice agent.
+          // No URLs/citations — those would only get spoken aloud awkwardly.
+          const bullets =
+            json.keyPoints && json.keyPoints.length > 0
+              ? `\nKey facts:\n- ${json.keyPoints.join("\n- ")}`
+              : "";
           host.sendContextualUpdate(
-            `[RESEARCH RESULT for "${params.query}"]: ${json.summary ?? ""}${top ? ` Top source: ${top.title} (${top.url}).` : ""}`,
+            `[BACKGROUND RESEARCH on "${params.query}" — use this as factual grounding, do not read it verbatim]\n${json.summary ?? ""}${bullets}`,
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : "failed";
@@ -152,6 +155,7 @@ export function buildClientTools(host: ToolHost) {
 
       return `Research query "${params.query}" dispatched. Continue speaking; findings will arrive shortly.`;
     },
+
 
     deep_think: (params: DeepThinkParams) => {
       const id = uid("think");

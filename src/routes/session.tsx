@@ -3,9 +3,9 @@ import { useEffect } from "react";
 import { useScholarStore } from "@/lib/scholar/store";
 import { VoicePanel } from "@/components/scholar/VoicePanel";
 import { CanvasPane } from "@/components/scholar/CanvasPane";
-import { ResearchFeed } from "@/components/scholar/ResearchFeed";
 import { Toaster } from "@/components/ui/sonner";
 import { ArrowLeft } from "lucide-react";
+
 
 export const Route = createFileRoute("/session")({
   component: SessionPage,
@@ -54,17 +54,15 @@ function SessionPage() {
         </h1>
       </header>
 
-      <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[320px_1fr_320px]">
+      <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[320px_1fr]">
         <aside className="border-r border-border bg-card/30 min-h-0">
           <VoicePanel />
         </aside>
         <main className="overflow-y-auto bg-background min-h-0">
           <CanvasPane />
         </main>
-        <aside className="border-l border-border bg-card/30 overflow-y-auto min-h-0">
-          <ResearchFeed />
-        </aside>
       </div>
+
     </div>
   );
 }

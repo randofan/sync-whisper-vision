@@ -4,42 +4,43 @@ import { generateResearch } from "./research.server";
 const apiKey = process.env.LOVABLE_API_KEY ?? "";
 const runIf = apiKey ? describe : describe.skip;
 
-runIf("research live generation", () => {
+runIf("research live deep agent", () => {
   it(
-    "produces a valid research result for a real paper topic",
+    "produces a grounded briefing for a real paper topic using tools",
     async () => {
-      const { result, attempts, warnings } = await generateResearch(
+      const { result, attempts, warnings, toolCalls } = await generateResearch(
         {
           query:
             "Background and prior work on lossless weight compression for LLM inference",
           pdfExcerpt:
             "Unweight: Lossless MLP Weight Compression for LLM Inference. We present a composable GPU toolkit for dense inference and MoE serving, focused on lossless compression of weight tensors via bit-level decomposition (sign, exponent, mantissa for BF16).",
         },
-        { apiKey, maxAttempts: 4 },
+        { apiKey, maxAttempts: 3 },
       );
-      expect(result.summary.length).toBeGreaterThan(20);
-      // citations may be empty (it's correct to omit unverifiable URLs) but must be an array.
-      expect(Array.isArray(result.citations)).toBe(true);
-      for (const c of result.citations) {
-        expect(c.url).toMatch(/^https?:\/\//);
-        expect(c.title.length).toBeGreaterThan(0);
+      expect(result.summary.length).toBeGreaterThan(80);
+      // The voice agent should never speak URLs.
+      expect(result.summary).not.toMatch(/https?:\/\//);
+      expect(result.summary).not.toMatch(/\]\(/); // markdown link syntax
+      for (const kp of result.keyPoints) {
+        expect(kp).not.toMatch(/https?:\/\//);
       }
-      console.log("research attempts:", attempts, "warnings:", warnings);
+      console.log("research attempts:", attempts, "toolCalls:", toolCalls, "warnings:", warnings);
       console.log("research summary:", result.summary);
-      console.log("research citations:", result.citations.length);
+      console.log("keyPoints:", result.keyPoints);
     },
-    180_000,
+    240_000,
   );
 
   it(
     "handles a vague topic without throwing",
     async () => {
-      const { result } = await generateResearch(
-        { query: "key concepts in unweight 2026" },
-        { apiKey, maxAttempts: 4 },
+      const { result, toolCalls } = await generateResearch(
+        { query: "key concepts in lossless model weight compression" },
+        { apiKey, maxAttempts: 3 },
       );
-      expect(result.summary.length).toBeGreaterThan(10);
+      expect(result.summary.length).toBeGreaterThan(40);
+      console.log("vague toolCalls:", toolCalls);
     },
-    180_000,
+    240_000,
   );
 });

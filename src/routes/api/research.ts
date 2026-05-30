@@ -1,10 +1,6 @@
 import "@tanstack/react-start";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  generateResearch,
-  searchArxiv,
-  mergeCitations,
-} from "@/lib/scholar/research.server";
+import { generateResearch } from "@/lib/scholar/research.server";
 
 const corsHeaders = { "Content-Type": "application/json" };
 
@@ -35,20 +31,20 @@ export const Route = createFileRoute("/api/research")({
         }
 
         try {
-          const arxivPromise = searchArxiv(query);
-          const { result, attempts, warnings } = await generateResearch(
+          const { result, attempts, warnings, toolCalls } = await generateResearch(
             { query, pdfExcerpt: body.pdfExcerpt },
             { apiKey },
           );
-          const arxiv = await arxivPromise;
-          const citations = mergeCitations(result.citations, arxiv);
 
           if (warnings.length > 0) {
             console.warn("research retries", warnings);
           }
+          console.log(
+            `research ok: attempts=${attempts} toolCalls=${toolCalls} summaryChars=${result.summary.length} keyPoints=${result.keyPoints.length}`,
+          );
 
           return new Response(
-            JSON.stringify({ ok: true, ...result, citations, attempts }),
+            JSON.stringify({ ok: true, ...result, attempts, toolCalls }),
             { status: 200, headers: corsHeaders },
           );
         } catch (err) {
