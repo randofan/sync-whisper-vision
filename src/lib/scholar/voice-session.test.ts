@@ -30,7 +30,7 @@ describe("Scholar voice session options", () => {
   it("includes bounded PDF context in agent overrides", () => {
     const prompt = buildScholarPrompt({ name: "paper.pdf", pages: 7, text: "x".repeat(31_000) });
 
-    expect(prompt).toContain('The user uploaded the PDF "paper.pdf" (7 pages)');
+    expect(prompt).toContain('The user uploaded "paper.pdf" (7 pages)');
     expect(prompt).toContain("PAPER CONTENT");
     expect(prompt.length).toBeLessThan(31_000);
   });
