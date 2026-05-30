@@ -124,6 +124,9 @@ function VoicePanelContent() {
     void (async () => {
       try {
         if (!pdf) throw new Error("Upload a PDF before starting the voice agent");
+        // Pre-empt long-horizon research so factual context is ready by the
+        // time the agent needs to ground its first response.
+        dispatchPreemptiveResearch(pdf.name, pdf.text);
         const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
         conversation.startSession({
           ...buildScholarVoiceSessionOptions(signedUrl, pdf),
@@ -152,6 +155,7 @@ function VoicePanelContent() {
     if (sentPdfContextRef.current === pdf.name) return;
     sentPdfContextRef.current = pdf.name;
     conversation.sendContextualUpdate(buildScholarContextUpdate(pdf), { contextId: `pdf:${pdf.name}` });
+    dispatchPreemptiveResearch(pdf.name, pdf.text);
   }, [connected, conversation, pdf]);
 
   useEffect(() => () => { try { void conversation.endSession(); } catch { /* noop */ } }, []); // eslint-disable-line
