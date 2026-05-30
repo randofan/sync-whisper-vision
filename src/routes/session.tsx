@@ -9,6 +9,7 @@ import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/session")({
   component: SessionPage,
+  ssr: false,
   head: () => ({
     meta: [{ title: "Session · Multimodal Scholar" }],
   }),
