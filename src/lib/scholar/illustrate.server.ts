@@ -201,19 +201,42 @@ export async function generateVisual(
 ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${correction}`;
 
     try {
-      const { experimental_output: out } = await generateText({
+      const { experimental_output: rawOut, text } = await generateText({
         model,
-        experimental_output: Output.object({ schema: VisualSchema }),
+        experimental_output: Output.object({ schema: LooseVisualSchema }),
         system: SYSTEM_PROMPT,
         prompt,
       });
-      const check = validateVisual(out);
+      let loose = rawOut;
+      if (!loose && text) {
+        // generateText didn't parse — try to recover from raw text.
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+          const parsed = LooseVisualSchema.safeParse(JSON.parse(match[0]));
+          if (parsed.success) loose = parsed.data;
+        }
+      }
+      if (!loose) {
+        lastError = "model returned no parseable JSON object";
+        warnings.push(`attempt ${attempt} (${modelId}): ${lastError}`);
+        continue;
+      }
+      const normalized = normalizeLoose(loose, {
+        title: input.topic,
+        narration: input.hint ?? `Visualization of ${input.topic}`,
+      });
+      if (!normalized.ok) {
+        lastError = normalized.reason;
+        warnings.push(`attempt ${attempt} (${modelId}): ${normalized.reason}`);
+        continue;
+      }
+      const check = validateVisual(normalized.visual);
       if (!check.ok) {
         lastError = check.reason;
         warnings.push(`attempt ${attempt} (${modelId}): ${check.reason}`);
         continue;
       }
-      return { visual: out, attempts: attempt, warnings };
+      return { visual: normalized.visual, attempts: attempt, warnings };
     } catch (err) {
       const msg =
         err instanceof NoObjectGeneratedError
