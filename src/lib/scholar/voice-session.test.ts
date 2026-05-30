@@ -39,7 +39,7 @@ describe("Scholar voice session options", () => {
     const context = buildScholarContextUpdate({ name: "paper.pdf", pages: 2, text: "TEST_CONTEXT_ABC" });
 
     expect(context).toContain("session instructions and uploaded PDF context");
-    expect(context).toContain('The user uploaded the PDF "paper.pdf" (2 pages)');
+    expect(context).toContain('The user uploaded "paper.pdf" (2 pages)');
     expect(context).toContain("TEST_CONTEXT_ABC");
   });
 
