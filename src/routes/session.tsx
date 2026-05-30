@@ -3,9 +3,9 @@ import { useEffect } from "react";
 import { useScholarStore } from "@/lib/scholar/store";
 import { VoicePanel } from "@/components/scholar/VoicePanel";
 import { CanvasPane } from "@/components/scholar/CanvasPane";
-import { ResearchFeed } from "@/components/scholar/ResearchFeed";
 import { Toaster } from "@/components/ui/sonner";
 import { ArrowLeft } from "lucide-react";
+
 
 export const Route = createFileRoute("/session")({
   component: SessionPage,
