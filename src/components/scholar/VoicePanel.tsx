@@ -26,6 +26,7 @@ function VoicePanelContent() {
 
   const conversationRef = useRef<ReturnType<typeof useConversation> | null>(null);
   const sentPdfContextRef = useRef<string | null>(null);
+  const preemptiveResearchRef = useRef<string | null>(null);
 
   const clientTools = useMemo(
     () =>
@@ -36,6 +37,26 @@ function VoicePanelContent() {
       }),
     [],
   );
+
+  // Pre-emptively dispatch background research on the paper so factual context
+  // is ready (or streaming in) by the time the agent needs to ground a response.
+  const dispatchPreemptiveResearch = (pdfName: string, pdfText: string) => {
+    if (preemptiveResearchRef.current === pdfName) return;
+    preemptiveResearchRef.current = pdfName;
+    const titleGuess = pdfName.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ").trim();
+    const excerpt = pdfText.slice(0, 1500).replace(/\s+/g, " ").trim();
+    const queries = [
+      `Background and prior work related to: ${titleGuess}. Context excerpt: ${excerpt.slice(0, 400)}`,
+      `Key concepts, definitions, and competing approaches discussed in "${titleGuess}"`,
+    ];
+    for (const q of queries) {
+      try {
+        clientTools.research({ query: q, scope: "both" });
+      } catch (err) {
+        console.warn("preemptive research dispatch failed", err);
+      }
+    }
+  };
 
   const conversation = useConversation({
     clientTools,
@@ -103,6 +124,9 @@ function VoicePanelContent() {
     void (async () => {
       try {
         if (!pdf) throw new Error("Upload a PDF before starting the voice agent");
+        // Pre-empt long-horizon research so factual context is ready by the
+        // time the agent needs to ground its first response.
+        dispatchPreemptiveResearch(pdf.name, pdf.text);
         const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
         conversation.startSession({
           ...buildScholarVoiceSessionOptions(signedUrl, pdf),
@@ -131,6 +155,7 @@ function VoicePanelContent() {
     if (sentPdfContextRef.current === pdf.name) return;
     sentPdfContextRef.current = pdf.name;
     conversation.sendContextualUpdate(buildScholarContextUpdate(pdf), { contextId: `pdf:${pdf.name}` });
+    dispatchPreemptiveResearch(pdf.name, pdf.text);
   }, [connected, conversation, pdf]);
 
   useEffect(() => () => { try { void conversation.endSession(); } catch { /* noop */ } }, []); // eslint-disable-line
