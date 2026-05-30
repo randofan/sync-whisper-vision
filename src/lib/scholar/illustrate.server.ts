@@ -24,6 +24,20 @@ const CalloutSpec = z.object({
   tone: z.enum(["info", "warn", "key"]).optional(),
 });
 
+// Permissive schema used during model generation — models frequently shortcut
+// `diagram: { mermaid: "..." }` to `diagram: "..."`, omit title/narration, or
+// emit `null` for unused spec fields. Normalize below before strict validation.
+const LooseVisualSchema = z.object({
+  title: z.string().optional().nullable(),
+  narration: z.string().optional().nullable(),
+  kind: z.enum(["chart", "math", "diagram", "table", "callout"]),
+  chart: z.any().optional().nullable(),
+  math: z.any().optional().nullable(),
+  diagram: z.any().optional().nullable(),
+  table: z.any().optional().nullable(),
+  callout: z.any().optional().nullable(),
+});
+
 export const VisualSchema = z.object({
   title: z.string(),
   narration: z.string().describe("One short sentence summarizing what's on screen"),
@@ -36,6 +50,51 @@ export const VisualSchema = z.object({
 });
 
 export type Visual = z.infer<typeof VisualSchema>;
+
+function normalizeLoose(
+  raw: z.infer<typeof LooseVisualSchema>,
+  fallback: { title: string; narration: string },
+): { ok: true; visual: Visual } | { ok: false; reason: string } {
+  const title = (raw.title ?? "").trim() || fallback.title;
+  const narration = (raw.narration ?? "").trim() || fallback.narration;
+  const kind = raw.kind;
+  const base = { title, narration, kind } as const;
+
+  const coerce = (
+    field: "chart" | "math" | "diagram" | "table" | "callout",
+  ): unknown => {
+    const v = raw[field];
+    if (v == null) return undefined;
+    if (field === "diagram" && typeof v === "string") return { mermaid: v };
+    if (field === "callout" && typeof v === "string") return { body: v };
+    if (field === "math" && Array.isArray(v)) return { steps: v as string[] };
+    return v;
+  };
+
+  try {
+    if (kind === "chart") {
+      const spec = ChartSpec.parse(coerce("chart"));
+      return { ok: true, visual: { ...base, chart: spec } };
+    }
+    if (kind === "math") {
+      const spec = MathSpec.parse(coerce("math"));
+      return { ok: true, visual: { ...base, math: spec } };
+    }
+    if (kind === "diagram") {
+      const spec = DiagramSpec.parse(coerce("diagram"));
+      return { ok: true, visual: { ...base, diagram: spec } };
+    }
+    if (kind === "table") {
+      const spec = TableSpec.parse(coerce("table"));
+      return { ok: true, visual: { ...base, table: spec } };
+    }
+    const spec = CalloutSpec.parse(coerce("callout"));
+    return { ok: true, visual: { ...base, callout: spec } };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "spec parse failed";
+    return { ok: false, reason: `kind="${kind}" spec invalid: ${msg}` };
+  }
+}
 
 const MERMAID_HEADERS = [
   "graph",
