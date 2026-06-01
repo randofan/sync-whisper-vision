@@ -7,7 +7,7 @@ export interface ThemeConfig {
   name: string;
   mermaidConfig: MermaidConfig;
   bgClass: string; 
-  bgStyle?: React.CSSProperties; // For custom patterns
+  bgStyle?: CSSProperties; // For custom patterns
     annotationColors: {
         primary: string;
         secondary: string;
