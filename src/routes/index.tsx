@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { extractPdfText } from "@/lib/scholar/pdf";
 import { useScholarStore } from "@/lib/scholar/store";
-import { FileText, Loader2, Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -23,7 +23,6 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const setPdf = useScholarStore((s) => s.setPdf);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -72,37 +71,23 @@ function Index() {
         >
           {parsing ? (
             <>
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-base">{progress || "Parsing PDF…"}</p>
             </>
           ) : (
             <>
-              <div className="rounded-full bg-primary/10 p-5 transition-transform group-hover:scale-110">
-                <Upload className="h-10 w-10 text-primary" />
-              </div>
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-glow">
+              <Upload className="h-10 w-10 text-primary" />
+              <div className="space-y-1.5">
+                <p className="text-xl font-semibold tracking-tight">
                   Drop a PDF to start learning
-                </h1>
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Drag &amp; drop your paper here, or click to browse
+                  Drag &amp; drop your paper here, or click anywhere in this box
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  inputRef.current?.click();
-                }}
-                className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground shadow-lg transition-transform hover:scale-105"
-              >
-                <FileText className="h-4 w-4" />
-                Choose a PDF
-              </button>
             </>
           )}
           <input
-            ref={inputRef}
             id="pdf"
             type="file"
             accept="application/pdf"
