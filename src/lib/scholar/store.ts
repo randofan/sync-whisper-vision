@@ -98,6 +98,20 @@ interface ScholarState {
   reset: () => void;
 }
 
+const createMemoryStorage = (): Storage => {
+  const values = new Map<string, string>();
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => Array.from(values.keys())[index] ?? null,
+    removeItem: (key) => values.delete(key),
+    setItem: (key, value) => values.set(key, value),
+  };
+};
+
 export const useScholarStore = create<ScholarState>()(
   persist(
     (set) => ({
@@ -146,7 +160,7 @@ export const useScholarStore = create<ScholarState>()(
     {
       name: "scholar-store",
       storage: createJSONStorage(() =>
-        typeof window !== "undefined" ? window.sessionStorage : (undefined as unknown as Storage),
+        typeof window !== "undefined" ? window.sessionStorage : createMemoryStorage(),
       ),
       partialize: (s) => ({ pdf: s.pdf }),
     },
