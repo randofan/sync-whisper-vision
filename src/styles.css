@@ -46,49 +46,50 @@
   --color-mono-grid: var(--mono-grid);
 }
 
-/* Dark scholarly workstation aesthetic */
+/* Canvas LMS inspired — classroom-clean, slate text on chalky paper */
 :root {
   --radius: 0.5rem;
-  --background: oklch(0.16 0.015 250);
-  --foreground: oklch(0.96 0.005 250);
-  --card: oklch(0.20 0.018 250);
-  --card-foreground: oklch(0.96 0.005 250);
-  --popover: oklch(0.20 0.018 250);
-  --popover-foreground: oklch(0.96 0.005 250);
-  --primary: oklch(0.78 0.18 145);
-  --primary-foreground: oklch(0.16 0.015 250);
-  --secondary: oklch(0.26 0.02 250);
-  --secondary-foreground: oklch(0.96 0.005 250);
-  --muted: oklch(0.24 0.02 250);
-  --muted-foreground: oklch(0.65 0.02 250);
-  --accent: oklch(0.70 0.18 230);
-  --accent-foreground: oklch(0.16 0.015 250);
-  --destructive: oklch(0.62 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.30 0.02 250);
-  --input: oklch(0.26 0.02 250);
-  --ring: oklch(0.78 0.18 145);
-  --chart-1: oklch(0.78 0.18 145);
-  --chart-2: oklch(0.70 0.18 230);
-  --chart-3: oklch(0.80 0.16 80);
-  --chart-4: oklch(0.72 0.20 320);
-  --chart-5: oklch(0.75 0.18 30);
-  --sidebar: oklch(0.18 0.018 250);
-  --sidebar-foreground: oklch(0.96 0.005 250);
-  --sidebar-primary: oklch(0.78 0.18 145);
-  --sidebar-primary-foreground: oklch(0.16 0.015 250);
-  --sidebar-accent: oklch(0.24 0.02 250);
-  --sidebar-accent-foreground: oklch(0.96 0.005 250);
-  --sidebar-border: oklch(0.30 0.02 250);
-  --sidebar-ring: oklch(0.78 0.18 145);
-  --glow: oklch(0.78 0.18 145 / 0.35);
-  --mono-grid: oklch(0.30 0.02 250 / 0.4);
+  --background: oklch(0.975 0.004 250);
+  --foreground: oklch(0.22 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 250);
+  /* Canvas blue #0374B5 */
+  --primary: oklch(0.55 0.13 240);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.008 250);
+  --secondary-foreground: oklch(0.22 0.02 250);
+  --muted: oklch(0.95 0.008 250);
+  --muted-foreground: oklch(0.48 0.015 250);
+  /* Canvas crimson #E72429 */
+  --accent: oklch(0.6 0.22 27);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.6 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.88 0.01 250);
+  --input: oklch(0.92 0.01 250);
+  --ring: oklch(0.55 0.13 240);
+  --chart-1: oklch(0.55 0.13 240);
+  --chart-2: oklch(0.6 0.22 27);
+  --chart-3: oklch(0.70 0.15 145);
+  --chart-4: oklch(0.72 0.18 75);
+  --chart-5: oklch(0.55 0.18 300);
+  --sidebar: oklch(0.27 0.025 250);
+  --sidebar-foreground: oklch(0.97 0.005 250);
+  --sidebar-primary: oklch(0.55 0.13 240);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.32 0.025 250);
+  --sidebar-accent-foreground: oklch(0.97 0.005 250);
+  --sidebar-border: oklch(0.35 0.02 250);
+  --sidebar-ring: oklch(0.55 0.13 240);
+  --glow: oklch(0.55 0.13 240 / 0.25);
+  --mono-grid: oklch(0.85 0.01 250 / 0.6);
 }
 
 .dark {
-  /* same — app is single dark theme */
-  --background: oklch(0.16 0.015 250);
-  --foreground: oklch(0.96 0.005 250);
+  --background: oklch(0.975 0.004 250);
+  --foreground: oklch(0.22 0.02 250);
 }
 
 @layer base {
@@ -101,11 +102,7 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Inter", sans-serif;
-    background-image:
-      radial-gradient(circle at 20% 0%, oklch(0.78 0.18 145 / 0.06), transparent 50%),
-      radial-gradient(circle at 80% 100%, oklch(0.70 0.18 230 / 0.06), transparent 50%);
-    background-attachment: fixed;
+    font-family: "Lato", ui-sans-serif, system-ui, -apple-system, "Inter", sans-serif;
   }
   code, pre {
     font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -135,5 +132,20 @@
   @keyframes slide-in-up {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  /* Slide-deck card chrome for visualization "slides" */
+  .deck-slide {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow:
+      0 1px 0 0 var(--border),
+      0 8px 20px -12px oklch(0.22 0.02 250 / 0.18),
+      0 2px 6px -2px oklch(0.22 0.02 250 / 0.08);
+    overflow: hidden;
+  }
+  .deck-slide-header {
+    background: linear-gradient(180deg, oklch(0.985 0.003 250), oklch(0.96 0.006 250));
+    border-bottom: 1px solid var(--border);
   }
 }
