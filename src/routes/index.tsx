@@ -25,19 +25,14 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const setPdf = useScholarStore((s) => s.setPdf);
-  const agentId = useScholarStore((s) => s.agentId);
-  const setAgentId = useScholarStore((s) => s.setAgentId);
 
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string>("");
 
   const handleFile = async (file: File) => {
-    if (!agentId.trim()) {
-      toast.error("Enter your ElevenLabs Agent ID first");
-      return;
-    }
     if (file.type !== "application/pdf") {
       toast.error("Please upload a PDF");
+
       return;
     }
     setParsing(true);
