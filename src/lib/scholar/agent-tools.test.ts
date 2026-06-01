@@ -72,6 +72,7 @@ describe("research client response handling", () => {
       }),
     ).rejects.toThrow(/Research service returned a non-JSON response \(503 Service Unavailable\): upstream request timeout/);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("illustrate client response handling (callout regression)", () => {
@@ -192,6 +193,4 @@ describe("contextual update dispatch ordering", () => {
     expect(sent).not.toHaveBeenCalled();
     expect(queued.join("\n")).toContain("Recovered background research.");
   });
-});
-
 });
