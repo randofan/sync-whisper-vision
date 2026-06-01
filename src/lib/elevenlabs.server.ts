@@ -1,6 +1,7 @@
 import {
   SCHOLAR_AGENT_NAME,
   buildScholarAgentCreatePayload,
+  buildScholarAgentUpdatePayload,
 } from "@/lib/scholar/scholar-agent-config";
 
 const ELEVENLABS_API_ORIGIN = "https://api.elevenlabs.io";
