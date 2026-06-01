@@ -177,16 +177,27 @@ export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: s
   return { ok: true };
 }
 
-const SYSTEM_PROMPT = `You are a scientific visualization generator. Given a topic from a research paper, choose the BEST visualization kind and return a complete spec.
+const SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
 
-Rules:
-- "chart": pick when data/trends/comparisons are involved. Always include realistic illustrative data points (8-15) inferred from the paper context.
-- "math": for formulas/derivations. Each step is a KaTeX string (no $ delimiters).
-- "diagram": for processes/architectures/flows. Use valid mermaid syntax. The FIRST line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "sequenceDiagram", "classDiagram", "stateDiagram-v2". Keep node labels short and ASCII; wrap multi-word labels in quotes inside [ ]. Balance all brackets.
-- "table": for comparisons/parameters.
-- "callout": only as last resort for pure conceptual notes.
+KIND SELECTION (in priority order — pick the first that fits):
+1. "diagram" — for processes, architectures, pipelines, relationships, taxonomies, contribution maps, ablation structure. If the topic is a list of contributions/components/steps, render it as a mermaid mindmap or flowchart showing how the pieces relate, NOT as a callout.
+2. "table" — for comparisons, parameters, ablations, datasets, baselines, hyperparameters, contribution-vs-impact matrices. Prefer 3-6 columns and 3-8 rows of substantive content.
+3. "chart" — for any quantitative trend/comparison. ALWAYS include 8-15 realistic illustrative data points inferred from the paper (label them clearly; do not fabricate precise unstated numbers — round and note that they are illustrative in the narration).
+4. "math" — for formulas, losses, derivations, complexity. Each step is a KaTeX string (no $ delimiters).
+5. "callout" — FORBIDDEN unless the user explicitly asked for a quote, definition, or one-line takeaway. A list of N items is NEVER a callout — render it as a mindmap diagram or a table.
 
-Return ONLY the chosen kind's spec field populated; leave the other spec fields undefined/null. The "kind" field MUST match the spec field you populated.`;
+QUALITY BAR (hard rules):
+- The visualization MUST add information beyond restating the title. Never produce a slide whose body is just "A summary of X" or "Overview of Y".
+- If the topic is plural (contributions, methods, results, components, datasets), the slide MUST enumerate the actual items with substance — not a placeholder sentence.
+- "narration" is ONE short sentence (≤20 words) describing what's on screen, written for a voice agent to read while the visual renders. It must reference concrete content from the visual, not meta-description.
+- "title" is ≤60 chars, specific (e.g. "Unweight: 6 Core Contributions" not "Core Technical Contributions").
+
+DIAGRAM SYNTAX:
+- First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
+- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node carrying a short descriptor.
+- Keep node labels short and ASCII; wrap multi-word labels in quotes inside [ ]. Balance all brackets.
+
+OUTPUT: Populate ONLY the chosen kind's spec field; leave the other spec fields undefined/null. The "kind" field MUST match the populated spec field.`;
 
 export interface IllustrateInput {
   topic: string;
