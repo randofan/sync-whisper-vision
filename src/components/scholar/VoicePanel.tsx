@@ -113,14 +113,9 @@ function VoicePanelContent() {
   const connected = status === "connected";
   const connecting = status === "connecting" || startRequested;
 
-  const fetchSignedUrl = useServerFn(getElevenLabsConversationSignedUrl);
+  const startSession = useServerFn(startScholarVoiceSession);
 
   const start = () => {
-    const cleanedAgentId = agentId.trim();
-    if (!cleanedAgentId) {
-      toast.error("Set an ElevenLabs Agent ID first");
-      return;
-    }
     setStartRequested(true);
     void (async () => {
       try {
@@ -128,7 +123,9 @@ function VoicePanelContent() {
         // Pre-empt long-horizon research so factual context is ready by the
         // time the agent needs to ground its first response.
         dispatchPreemptiveResearch(pdf.name, pdf.text);
-        const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
+        // Auto-provisions the Scholar agent on the workspace if it doesn't
+        // exist yet, then returns a fresh signed URL.
+        const { signedUrl } = await startSession({ data: undefined });
         conversation.startSession({
           ...buildScholarVoiceSessionOptions(signedUrl, pdf),
           clientTools,
@@ -146,6 +143,7 @@ function VoicePanelContent() {
       }
     })();
   };
+
 
   const stop = async () => {
     await conversation.endSession();
