@@ -20,8 +20,8 @@ export function VoicePanel() {
 
 function VoicePanelContent() {
   const pdf = useScholarStore((s) => s.pdf);
-  const agentId = useScholarStore((s) => s.agentId);
   const appendTranscript = useScholarStore((s) => s.appendTranscript);
+
   const transcript = useScholarStore((s) => s.transcript);
   const [startRequested, setStartRequested] = useState(false);
 
