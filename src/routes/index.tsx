@@ -88,7 +88,6 @@ function Index() {
             </>
           )}
           <input
-            ref={inputRef}
             id="pdf"
             type="file"
             accept="application/pdf"
