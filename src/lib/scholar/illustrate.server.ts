@@ -206,10 +206,11 @@ type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
 }>;
 
 const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|note)\b/i;
+const GENERIC_VISUAL_HINT_RE = /^(chart|line chart|bar chart|area chart|scatter|math|formula|diagram|table|callout)$/i;
 
 export function createFallbackCalloutVisual(input: IllustrateInput): Visual {
   const hint = input.hint?.replace(/\bcallout\b:?/gi, "").replace(/\s+/g, " ").trim();
-  const body = (hint || input.topic || "Key takeaway").slice(0, 320);
+  const body = (hint && !GENERIC_VISUAL_HINT_RE.test(hint) ? hint : input.topic || "Key takeaway").slice(0, 320);
   return {
     title: input.topic || "Key takeaway",
     narration: body,
