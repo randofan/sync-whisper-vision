@@ -36,7 +36,7 @@ describe("research client response handling", () => {
   });
 
   it("returns a useful final error if every retry gets non-JSON", async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () =>
       new Response("upstream request timeout", {
         status: 503,
         statusText: "Service Unavailable",
