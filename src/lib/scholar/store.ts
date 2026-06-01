@@ -82,8 +82,6 @@ interface PdfState {
 
 interface ScholarState {
   pdf: PdfState | null;
-  agentId: string;
-  setAgentId: (id: string) => void;
   setPdf: (pdf: PdfState | null) => void;
 
   canvasItems: CanvasItem[];
@@ -100,14 +98,10 @@ interface ScholarState {
   reset: () => void;
 }
 
-const DEFAULT_AGENT_ID = "agent_1701krmxt8bve3svarx3wz0kj1wj";
-
 export const useScholarStore = create<ScholarState>()(
   persist(
     (set) => ({
       pdf: null,
-      agentId: DEFAULT_AGENT_ID,
-      setAgentId: (id) => set({ agentId: id }),
       setPdf: (pdf) => set({ pdf }),
 
       canvasItems: [],
@@ -154,7 +148,8 @@ export const useScholarStore = create<ScholarState>()(
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? window.sessionStorage : (undefined as unknown as Storage),
       ),
-      partialize: (s) => ({ pdf: s.pdf, agentId: s.agentId }),
+      partialize: (s) => ({ pdf: s.pdf }),
     },
   ),
 );
+
