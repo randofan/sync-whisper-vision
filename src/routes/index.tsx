@@ -1,13 +1,12 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { extractPdfText } from "@/lib/scholar/pdf";
 import { useScholarStore } from "@/lib/scholar/store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FileText, Loader2, Mic, Sparkles, Search, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+
 
 export const Route = createFileRoute("/")({
   component: Index,
