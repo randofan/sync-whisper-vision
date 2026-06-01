@@ -144,7 +144,7 @@ describe("generateVisual — callout and billing fallbacks", () => {
 
     expect(generateTextImpl).toHaveBeenCalledTimes(1);
     expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toBe("diagram");
+    expect(result.visual.callout?.body).toBe("Attention sparsity tradeoff");
     expect(result.warnings.join("\n")).not.toMatch(/Payment Required/);
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
