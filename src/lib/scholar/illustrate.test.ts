@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { normalizeLoose, validateMermaid, validateVisual, type Visual } from "./illustrate.server";
+import { describe, expect, it, vi } from "vitest";
+import { generateVisual, normalizeLoose, validateMermaid, validateVisual, type Visual } from "./illustrate.server";
 
 describe("validateMermaid", () => {
   it("accepts a well-formed flowchart", () => {
@@ -115,5 +115,53 @@ describe("normalizeLoose — callout robustness (regression)", () => {
     const res = normalizeLoose({ kind: "callout" } as never, fallback);
     expect(res.ok).toBe(true);
     if (res.ok) expect(validateVisual(res.visual)).toEqual({ ok: true });
+  });
+});
+
+describe("generateVisual — callout and billing fallbacks", () => {
+  it("renders an explicit callout locally without touching the paid AI gateway", async () => {
+    const generateTextImpl = vi.fn();
+
+    const result = await generateVisual(
+      { topic: "Key theorem", hint: "callout: convergence depends on a bounded variance assumption" },
+      { apiKey: "test-key", generateTextImpl },
+    );
+
+    expect(generateTextImpl).not.toHaveBeenCalled();
+    expect(result.attempts).toBe(0);
+    expect(result.visual.kind).toBe("callout");
+    expect(result.visual.callout?.body).toContain("convergence");
+    expect(validateVisual(result.visual)).toEqual({ ok: true });
+  });
+
+  it("falls back to a valid local callout instead of surfacing Payment Required", async () => {
+    const generateTextImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
+
+    const result = await generateVisual(
+      { topic: "Attention sparsity tradeoff", hint: "diagram" },
+      { apiKey: "test-key", maxAttempts: 4, generateTextImpl },
+    );
+
+    expect(generateTextImpl).toHaveBeenCalledTimes(1);
+    expect(result.visual.kind).toBe("callout");
+    expect(result.visual.callout?.body).toBe("diagram");
+    expect(result.warnings.join("\n")).not.toMatch(/Payment Required/);
+    expect(validateVisual(result.visual)).toEqual({ ok: true });
+  });
+
+  it("falls back to a valid callout when every structured attempt is invalid", async () => {
+    const generateTextImpl = vi.fn().mockResolvedValue({
+      experimental_output: { kind: "diagram", diagram: "not mermaid" },
+    });
+
+    const result = await generateVisual(
+      { topic: "Broken generated diagram", hint: "show the main takeaway" },
+      { apiKey: "test-key", maxAttempts: 2, generateTextImpl },
+    );
+
+    expect(generateTextImpl).toHaveBeenCalledTimes(2);
+    expect(result.visual.kind).toBe("callout");
+    expect(result.visual.callout?.body).toBe("show the main takeaway");
+    expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
 });
