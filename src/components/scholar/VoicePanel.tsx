@@ -191,7 +191,7 @@ function VoicePanelContent() {
             <Button
               size="sm"
               onClick={start}
-              disabled={connecting || !pdf || !agentId.trim()}
+              disabled={connecting || !pdf}
               className="ring-glow"
             >
               {connecting ? (
