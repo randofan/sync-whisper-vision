@@ -155,13 +155,13 @@ describe("generateVisual — callout and billing fallbacks", () => {
     });
 
     const result = await generateVisual(
-      { topic: "Broken generated diagram", hint: "show the main takeaway" },
+      { topic: "Broken generated diagram", hint: "show the architecture" },
       { apiKey: "test-key", maxAttempts: 2, generateTextImpl },
     );
 
     expect(generateTextImpl).toHaveBeenCalledTimes(2);
     expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toBe("show the main takeaway");
+    expect(result.visual.callout?.body).toBe("show the architecture");
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
 });
