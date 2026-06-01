@@ -272,7 +272,9 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
         system: SYSTEM_PROMPT,
         prompt,
       });
-      let loose = rawOut;
+      let loose: z.infer<typeof LooseVisualSchema> | undefined;
+      const generated = LooseVisualSchema.safeParse(rawOut);
+      if (generated.success) loose = generated.data;
       if (!loose && text) {
         // generateText didn't parse — try to recover from raw text.
         const match = text.match(/\{[\s\S]*\}/);
