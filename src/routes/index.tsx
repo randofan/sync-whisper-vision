@@ -1,22 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { extractPdfText } from "@/lib/scholar/pdf";
 import { useScholarStore } from "@/lib/scholar/store";
-import { Label } from "@/components/ui/label";
-import { FileText, Loader2, Mic, Sparkles, Search, Brain } from "lucide-react";
+import { FileText, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-
 
 export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "Multimodal Scholar — voice research companion" },
+      { title: "Multimodal Scholar — drop a PDF to start learning" },
       {
         name: "description",
         content:
-          "Upload a paper and have a peer-level voice conversation with an AI scholar that visualizes, researches, and reasons in real time.",
+          "Drop a PDF and have a voice conversation with an AI scholar that visualizes and researches in real time.",
       },
     ],
   }),
@@ -25,14 +23,15 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const setPdf = useScholarStore((s) => s.setPdf);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string>("");
+  const [dragging, setDragging] = useState(false);
 
   const handleFile = async (file: File) => {
     if (file.type !== "application/pdf") {
       toast.error("Please upload a PDF");
-
       return;
     }
     setParsing(true);
@@ -51,88 +50,69 @@ function Index() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex items-center justify-center px-6">
       <Toaster theme="dark" richColors />
-      <div className="mx-auto max-w-4xl px-6 py-16">
-        <header className="mb-12">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs">
-            <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-            <span className="text-muted-foreground">Asynchronous multimodal research</span>
-          </div>
-          <h1 className="text-5xl font-semibold tracking-tight text-glow">
-            Multimodal Scholar
-          </h1>
-          <p className="mt-4 max-w-2xl text-base text-muted-foreground leading-relaxed">
-            Upload a technical paper. Talk to it. While you discuss, an illustrator subagent
-            renders charts, derivations, and diagrams on a live canvas, and a background research
-            agent surfaces external context — all without interrupting the conversation.
-          </p>
-        </header>
-
-        <div className="grid gap-6 md:grid-cols-3 mb-10">
-          {[
-            { icon: Mic, label: "Voice", desc: "ElevenLabs WebRTC conversation, sub-500ms feel." },
-            { icon: Sparkles, label: "Illustrator", desc: "Charts, math, diagrams streamed to canvas." },
-            { icon: Search, label: "Research", desc: "Web search + arXiv pulled in parallel." },
-          ].map((f) => (
-            <div key={f.label} className="rounded-lg border border-border bg-card p-4">
-              <f.icon className="h-4 w-4 text-primary" />
-              <p className="mt-2 text-sm font-semibold">{f.label}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <section className="rounded-xl border border-border bg-card p-6 ring-glow">
-          <div className="space-y-5">
-            <div>
-              <Label>Research paper (PDF)</Label>
-              <label
-                htmlFor="pdf"
-                className={`mt-1.5 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-background p-10 transition-colors hover:border-primary/60 ${parsing ? "pointer-events-none opacity-60" : ""}`}
+      <div className="w-full max-w-2xl">
+        <label
+          htmlFor="pdf"
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!parsing) setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) void handleFile(f);
+          }}
+          className={`group flex cursor-pointer flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed bg-card p-16 text-center transition-all ${
+            dragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/60 hover:bg-card/80"
+          } ${parsing ? "pointer-events-none opacity-70" : ""} ring-glow`}
+        >
+          {parsing ? (
+            <>
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="text-base">{progress || "Parsing PDF…"}</p>
+            </>
+          ) : (
+            <>
+              <div className="rounded-full bg-primary/10 p-5 transition-transform group-hover:scale-110">
+                <Upload className="h-10 w-10 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-glow">
+                  Drop a PDF to start learning
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  Drag &amp; drop your paper here, or click to browse
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  inputRef.current?.click();
+                }}
+                className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground shadow-lg transition-transform hover:scale-105"
               >
-                {parsing ? (
-                  <>
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <p className="text-sm">{progress || "Parsing PDF…"}</p>
-                  </>
-                ) : (
-                  <>
-                    <FileText className="h-6 w-6 text-primary" />
-                    <p className="text-sm font-medium">Drop a PDF or click to upload</p>
-                    <p className="text-xs text-muted-foreground">
-                      Parsed in your browser · session only · max ~250k chars
-                    </p>
-                  </>
-                )}
-                <input
-                  id="pdf"
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleFile(f);
-                  }}
-                />
-              </label>
-              <p className="mt-2 text-xs text-muted-foreground">
-                The Scholar voice agent (with <code className="text-foreground">visualize</code>,{" "}
-                <code className="text-foreground">research</code>, and{" "}
-                <code className="text-foreground">deep_think</code> tools) is auto-provisioned on
-                your ElevenLabs workspace the first time you start a session — no manual setup
-                needed.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end border-t border-border pt-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Brain className="h-3 w-3" /> Powered by Lovable AI + ElevenLabs
-              </span>
-            </div>
-          </div>
-        </section>
-
+                <FileText className="h-4 w-4" />
+                Choose a PDF
+              </button>
+            </>
+          )}
+          <input
+            ref={inputRef}
+            id="pdf"
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleFile(f);
+            }}
+          />
+        </label>
       </div>
     </div>
   );
