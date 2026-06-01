@@ -28,12 +28,24 @@ function VoicePanelContent() {
   const conversationRef = useRef<ReturnType<typeof useConversation> | null>(null);
   const sentPdfContextRef = useRef<string | null>(null);
   const preemptiveResearchRef = useRef<string | null>(null);
+  const contextualUpdateQueueRef = useRef<string[]>([]);
+
+  const flushContextualUpdates = () => {
+    const liveConversation = conversationRef.current;
+    if (liveConversation?.status !== "connected") return;
+    const queued = contextualUpdateQueueRef.current.splice(0);
+    for (const text of queued) liveConversation.sendContextualUpdate(text);
+  };
 
   const clientTools = useMemo(
     () =>
       buildClientTools({
         sendContextualUpdate: (text) => {
           conversationRef.current?.sendContextualUpdate(text);
+        },
+        canSendContextualUpdate: () => conversationRef.current?.status === "connected",
+        queueContextualUpdate: (text) => {
+          contextualUpdateQueueRef.current.push(text);
         },
       }),
     [],
@@ -63,6 +75,7 @@ function VoicePanelContent() {
     clientTools,
     onConnect: () => {
       setStartRequested(false);
+      flushContextualUpdates();
       toast.success("Connected to Scholar");
     },
     onDisconnect: (details) => {
@@ -120,13 +133,10 @@ function VoicePanelContent() {
     void (async () => {
       try {
         if (!pdf) throw new Error("Upload a PDF before starting the voice agent");
-        // Pre-empt long-horizon research so factual context is ready by the
-        // time the agent needs to ground its first response.
-        dispatchPreemptiveResearch(pdf.name, pdf.text);
         // Auto-provisions the Scholar agent on the workspace if it doesn't
         // exist yet, then returns a fresh signed URL.
         const { signedUrl } = await startSession({ data: undefined });
-        conversation.startSession({
+        await conversation.startSession({
           ...buildScholarVoiceSessionOptions(signedUrl, pdf),
           clientTools,
           onConversationCreated: (liveConversation) => {
@@ -134,8 +144,10 @@ function VoicePanelContent() {
             liveConversation.sendContextualUpdate(buildScholarContextUpdate(pdf), {
               contextId: `pdf:${pdf.name}`,
             });
+            dispatchPreemptiveResearch(pdf.name, pdf.text);
           },
         });
+        flushContextualUpdates();
       } catch (err) {
         setStartRequested(false);
         const msg = err instanceof Error ? err.message : "Failed to start";
