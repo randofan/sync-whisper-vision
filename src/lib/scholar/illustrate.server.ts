@@ -200,14 +200,52 @@ export interface IllustrateResult {
   warnings: string[];
 }
 
+type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
+  experimental_output?: unknown;
+  text?: string;
+}>;
+
+const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|note)\b/i;
+
+export function createFallbackCalloutVisual(input: IllustrateInput): Visual {
+  const hint = input.hint?.replace(/\bcallout\b:?/gi, "").replace(/\s+/g, " ").trim();
+  const body = (hint || input.topic || "Key takeaway").slice(0, 320);
+  return {
+    title: input.topic || "Key takeaway",
+    narration: body,
+    kind: "callout",
+    callout: { body, tone: "key" },
+  };
+}
+
+export function isBillingOrCreditError(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
+}
+
+function shouldRenderLocalCallout(input: IllustrateInput) {
+  return CALLOUT_HINT_RE.test(`${input.hint ?? ""} ${input.topic ?? ""}`);
+}
+
 export async function generateVisual(
   input: IllustrateInput,
-  opts: { apiKey: string; maxAttempts?: number } = { apiKey: "" },
+  opts: { apiKey?: string; maxAttempts?: number; generateTextImpl?: GenerateTextLike } = {},
 ): Promise<IllustrateResult> {
+  if (shouldRenderLocalCallout(input)) {
+    return { visual: createFallbackCalloutVisual(input), attempts: 0, warnings: [] };
+  }
+
   const apiKey = opts.apiKey || process.env.LOVABLE_API_KEY || "";
-  if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
+  if (!apiKey) {
+    return {
+      visual: createFallbackCalloutVisual(input),
+      attempts: 0,
+      warnings: ["AI visual generation unavailable; rendered a local callout."],
+    };
+  }
   const maxAttempts = opts.maxAttempts ?? 4;
   const gateway = createLovableAiGatewayProvider(apiKey);
+  const runGenerateText = (opts.generateTextImpl ?? generateText) as GenerateTextLike;
 
   const models = [
     "google/gemini-3-flash-preview",
@@ -228,7 +266,7 @@ export async function generateVisual(
 ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } = await generateText({
+      const { experimental_output: rawOut, text } = await runGenerateText({
         model,
         experimental_output: Output.object({ schema: LooseVisualSchema }),
         system: SYSTEM_PROMPT,
@@ -271,10 +309,27 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
           : err instanceof Error
             ? err.message
             : "unknown generation error";
+      if (isBillingOrCreditError(err)) {
+        return {
+          visual: createFallbackCalloutVisual(input),
+          attempts: attempt,
+          warnings: [
+            ...warnings,
+            `attempt ${attempt} (${modelId}): AI visual generation unavailable; rendered a local callout.`,
+          ],
+        };
+      }
       lastError = msg;
       warnings.push(`attempt ${attempt} (${modelId}): ${msg}`);
     }
   }
 
-  throw new Error(`Failed to generate a valid visual after ${maxAttempts} attempts. Last error: ${lastError}`);
+  return {
+    visual: createFallbackCalloutVisual(input),
+    attempts: maxAttempts,
+    warnings: [
+      ...warnings,
+      `AI visual generation did not return a valid spec; rendered a local callout.${lastError ? ` Last error: ${lastError}` : ""}`,
+    ],
+  };
 }
