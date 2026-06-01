@@ -23,12 +23,6 @@ export const Route = createFileRoute("/api/illustrate")({
           });
         }
         const apiKey = process.env.LOVABLE_API_KEY;
-        if (!apiKey) {
-          return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
-            status: 500,
-            headers: corsHeaders,
-          });
-        }
 
         try {
           const result = await generateVisual(
