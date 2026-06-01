@@ -1,13 +1,12 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { extractPdfText } from "@/lib/scholar/pdf";
 import { useScholarStore } from "@/lib/scholar/store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FileText, Loader2, Mic, Sparkles, Search, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -26,19 +25,14 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const setPdf = useScholarStore((s) => s.setPdf);
-  const agentId = useScholarStore((s) => s.agentId);
-  const setAgentId = useScholarStore((s) => s.setAgentId);
 
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string>("");
 
   const handleFile = async (file: File) => {
-    if (!agentId.trim()) {
-      toast.error("Enter your ElevenLabs Agent ID first");
-      return;
-    }
     if (file.type !== "application/pdf") {
       toast.error("Please upload a PDF");
+
       return;
     }
     setParsing(true);
@@ -92,23 +86,6 @@ function Index() {
         <section className="rounded-xl border border-border bg-card p-6 ring-glow">
           <div className="space-y-5">
             <div>
-              <Label htmlFor="agent">ElevenLabs Agent ID</Label>
-              <Input
-                id="agent"
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
-                placeholder="agent_xxxxxxxx"
-                className="mt-1.5 font-mono text-sm"
-              />
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Create an agent in ElevenLabs and add the three client tools (
-                <code className="text-foreground">visualize</code>,{" "}
-                <code className="text-foreground">research</code>,{" "}
-                <code className="text-foreground">deep_think</code>). See setup notes below.
-              </p>
-            </div>
-
-            <div>
               <Label>Research paper (PDF)</Label>
               <label
                 htmlFor="pdf"
@@ -139,18 +116,23 @@ function Index() {
                   }}
                 />
               </label>
+              <p className="mt-2 text-xs text-muted-foreground">
+                The Scholar voice agent (with <code className="text-foreground">visualize</code>,{" "}
+                <code className="text-foreground">research</code>, and{" "}
+                <code className="text-foreground">deep_think</code> tools) is auto-provisioned on
+                your ElevenLabs workspace the first time you start a session — no manual setup
+                needed.
+              </p>
             </div>
 
-            <div className="flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
-              <Link to="/setup" className="underline-offset-2 hover:underline hover:text-foreground">
-                Agent setup instructions →
-              </Link>
+            <div className="flex items-center justify-end border-t border-border pt-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Brain className="h-3 w-3" /> Powered by Lovable AI + ElevenLabs
               </span>
             </div>
           </div>
         </section>
+
       </div>
     </div>
   );

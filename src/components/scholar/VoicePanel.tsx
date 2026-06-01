@@ -4,10 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useScholarStore } from "@/lib/scholar/store";
 import { buildClientTools } from "@/lib/scholar/agent-tools";
 import { buildScholarContextUpdate, buildScholarVoiceSessionOptions } from "@/lib/scholar/voice-session";
-import { getElevenLabsConversationSignedUrl } from "@/lib/elevenlabs.functions";
+import { startScholarVoiceSession } from "@/lib/elevenlabs.functions";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, PhoneOff, Phone } from "lucide-react";
 import { toast } from "sonner";
+
 
 export function VoicePanel() {
   return (
@@ -19,8 +20,8 @@ export function VoicePanel() {
 
 function VoicePanelContent() {
   const pdf = useScholarStore((s) => s.pdf);
-  const agentId = useScholarStore((s) => s.agentId);
   const appendTranscript = useScholarStore((s) => s.appendTranscript);
+
   const transcript = useScholarStore((s) => s.transcript);
   const [startRequested, setStartRequested] = useState(false);
 
@@ -112,14 +113,9 @@ function VoicePanelContent() {
   const connected = status === "connected";
   const connecting = status === "connecting" || startRequested;
 
-  const fetchSignedUrl = useServerFn(getElevenLabsConversationSignedUrl);
+  const startSession = useServerFn(startScholarVoiceSession);
 
   const start = () => {
-    const cleanedAgentId = agentId.trim();
-    if (!cleanedAgentId) {
-      toast.error("Set an ElevenLabs Agent ID first");
-      return;
-    }
     setStartRequested(true);
     void (async () => {
       try {
@@ -127,7 +123,9 @@ function VoicePanelContent() {
         // Pre-empt long-horizon research so factual context is ready by the
         // time the agent needs to ground its first response.
         dispatchPreemptiveResearch(pdf.name, pdf.text);
-        const { signedUrl } = await fetchSignedUrl({ data: { agentId: cleanedAgentId } });
+        // Auto-provisions the Scholar agent on the workspace if it doesn't
+        // exist yet, then returns a fresh signed URL.
+        const { signedUrl } = await startSession({ data: undefined });
         conversation.startSession({
           ...buildScholarVoiceSessionOptions(signedUrl, pdf),
           clientTools,
@@ -145,6 +143,7 @@ function VoicePanelContent() {
       }
     })();
   };
+
 
   const stop = async () => {
     await conversation.endSession();
@@ -192,7 +191,7 @@ function VoicePanelContent() {
             <Button
               size="sm"
               onClick={start}
-              disabled={connecting || !pdf || !agentId.trim()}
+              disabled={connecting || !pdf}
               className="ring-glow"
             >
               {connecting ? (
