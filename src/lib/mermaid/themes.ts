@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { MermaidConfig } from 'mermaid';
 
 export type ThemeType = 'linearLight' | 'linearDark' | 'notion' | 'ghibli' | 'spotless' | 'brutalist' | 'glassmorphism' | 'memphis' | 'softPop' | 'cyberpunk' | 'monochrome' | 'darkMinimal' | 'wireframe' | 'handDrawn' | 'grafana' | 'noir' | 'material' | 'aurora' | 'win95' | 'doodle' | 'organic' | 'hightech' | 'kawaii' | 'geometricCollage';
