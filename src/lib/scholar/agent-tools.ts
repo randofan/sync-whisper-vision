@@ -20,6 +20,19 @@ interface ResearchParams {
   scope?: "web" | "citations" | "both";
 }
 
+interface ResearchRequestPayload {
+  query: string;
+  pdfExcerpt?: string;
+  scope?: "web" | "citations" | "both";
+}
+
+interface ResearchApiResponse {
+  ok?: boolean;
+  summary?: string;
+  keyPoints?: string[];
+  error?: string;
+}
+
 interface DeepThinkParams {
   question: string;
 }
@@ -30,6 +43,55 @@ function getPdfContext() {
     text: pdf?.text ?? "",
     title: pdf?.name ?? "",
   };
+}
+
+function responsePreview(text: string) {
+  return text.replace(/\s+/g, " ").trim().slice(0, 180) || "empty response body";
+}
+
+function shouldRetryResearchError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  return /non-JSON|upstream|timeout|temporar|network|fetch failed|\b5\d\d\b/i.test(message);
+}
+
+export async function parseResearchResponse(res: Response): Promise<ResearchApiResponse> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as ResearchApiResponse;
+  } catch {
+    throw new Error(
+      `Research service returned a non-JSON response (${res.status} ${res.statusText || "unknown status"}): ${responsePreview(text)}`,
+    );
+  }
+}
+
+export async function fetchResearchBriefing(
+  payload: ResearchRequestPayload,
+  fetchImpl: typeof fetch = fetch,
+  opts: { attempts?: number; retryDelayMs?: number } = {},
+) {
+  const attempts = opts.attempts ?? 3;
+  const retryDelayMs = opts.retryDelayMs ?? 500;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const res = await fetchImpl("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await parseResearchResponse(res);
+      if (!res.ok || !json.ok) throw new Error(json.error ?? `research request failed (${res.status})`);
+      return json;
+    } catch (err) {
+      lastError = err;
+      if (attempt >= attempts || !shouldRetryResearchError(err)) break;
+      if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("research failed");
 }
 
 export function buildClientTools(host: ToolHost) {
@@ -117,22 +179,11 @@ export function buildClientTools(host: ToolHost) {
       void (async () => {
         try {
           const ctx = getPdfContext();
-          const res = await fetch("/api/research", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: params.query,
-              pdfExcerpt: ctx.text.slice(0, 12_000),
-              scope: params.scope,
-            }),
+          const json = await fetchResearchBriefing({
+            query: params.query,
+            pdfExcerpt: ctx.text.slice(0, 12_000),
+            scope: params.scope,
           });
-          const json = (await res.json()) as {
-            ok?: boolean;
-            summary?: string;
-            keyPoints?: string[];
-            error?: string;
-          };
-          if (!json.ok) throw new Error(json.error ?? "research failed");
           store().patchResearch(id, {
             status: "ready",
             summary: json.summary,
