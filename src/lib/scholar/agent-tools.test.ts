@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchResearchBriefing, parseResearchResponse } from "./agent-tools";
+import {
+  fetchDeepThink,
+  fetchIllustration,
+  fetchResearchBriefing,
+  parseResearchResponse,
+} from "./agent-tools";
+
 
 describe("research client response handling", () => {
   it("turns the exact upstream non-JSON body into a controlled error", async () => {
