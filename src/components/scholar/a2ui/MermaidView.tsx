@@ -3,7 +3,7 @@ import { themes, type ThemeType } from "@/lib/mermaid/themes";
 
 interface Props {
   source: string;
-  /** Theme from the modern_mermaid theme catalog. Defaults to "darkMinimal". */
+  /** Theme from the modern_mermaid theme catalog. Defaults to "handDrawn". */
   theme?: ThemeType;
 }
 
@@ -26,7 +26,7 @@ async function getMermaid(theme: ThemeType) {
   return mermaid;
 }
 
-export function MermaidView({ source, theme = "darkMinimal" }: Props) {
+export function MermaidView({ source, theme = "handDrawn" }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const idRef = useRef(`mmd-${Math.random().toString(36).slice(2)}`);
   const themeCfg = themes[theme];
