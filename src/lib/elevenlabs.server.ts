@@ -101,13 +101,28 @@ export async function createScholarAgent(): Promise<string> {
 }
 
 /**
- * Return an existing auto-provisioned Scholar agent ID, creating one on
- * the user's workspace if none exists yet. Cached per worker per API key
- * so repeated calls don't hit the list endpoint.
- *
- * NOTE: this does NOT reconcile config drift. If the prompt/tools change,
- * the existing agent keeps its old config unless the user deletes it (or
- * we add an explicit "rebuild" step).
+ * Reconcile an existing agent's prompt + tools with our current code.
+ * Fix for the "LLM Cascade Error: Tool not found in available tools" crash:
+ * an agent created with an older tool set (e.g. no `visualize`) would
+ * reject the model's tool call. We now PATCH on every cold start.
+ */
+export async function syncScholarAgentConfig(agentId: string): Promise<void> {
+  await fetchElevenLabsJson<unknown>(
+    `/v1/convai/agents/${encodeURIComponent(agentId)}`,
+    "update agent",
+    {
+      method: "PATCH",
+      body: JSON.stringify(buildScholarAgentUpdatePayload()),
+    },
+  );
+}
+
+/**
+ * Return an auto-provisioned Scholar agent ID, creating one if none exists.
+ * If an existing agent is found, its prompt + client tool definitions are
+ * PATCHed to match the current code so config drift can't trigger the
+ * "Tool not found in available tools" cascade error. Cached per worker per
+ * API key so the sync runs at most once per cold start.
  */
 export async function ensureScholarAgentId(): Promise<string> {
   const key = getElevenLabsApiKey();
@@ -116,6 +131,7 @@ export async function ensureScholarAgentId(): Promise<string> {
 
   const existing = await findScholarAgentId();
   if (existing) {
+    await syncScholarAgentConfig(existing);
     scholarAgentCache.set(key, existing);
     return existing;
   }
