@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("ensureScholarAgentId", () => {
-  it("reuses an existing auto-provisioned agent when one matches by name", async () => {
+  it("reuses an existing agent and PATCHes it with current tools to fix config drift", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
@@ -28,15 +28,28 @@ describe("ensureScholarAgentId", () => {
           }),
           { status: 200 },
         ),
-      );
+      )
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
 
     await expect(ensureScholarAgentId()).resolves.toBe("agent_existing");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toContain("/v1/convai/agents?");
+
+    // Second call MUST be a PATCH against the existing agent with current tools.
+    const [patchUrl, patchInit] = fetchMock.mock.calls[1];
+    expect(patchUrl).toContain("/v1/convai/agents/agent_existing");
+    expect((patchInit as RequestInit).method).toBe("PATCH");
+    const patchBody = JSON.parse((patchInit as RequestInit).body as string);
+    const patchToolNames = patchBody.conversation_config.agent.prompt.tools.map(
+      (t: { name: string }) => t.name,
+    );
+    // Regression: this list must include every tool the model is told it has,
+    // otherwise ElevenLabs throws "LLM Cascade Error: Tool not found".
+    expect(patchToolNames).toEqual(["visualize", "research", "deep_think"]);
 
     // Cached: a second call must not hit the network.
     await expect(ensureScholarAgentId()).resolves.toBe("agent_existing");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("creates a new agent (with our client tools) when none exist", async () => {
