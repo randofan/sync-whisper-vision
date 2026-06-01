@@ -199,31 +199,14 @@ export function buildClientTools(host: ToolHost) {
       void (async () => {
         try {
           const ctx = getPdfContext();
-          const res = await fetch("/api/illustrate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              topic: params.topic,
-              hint: params.hint,
-              pdfExcerpt: ctx.text.slice(0, 30_000),
-            }),
+          const json = await fetchIllustration({
+            topic: params.topic,
+            hint: params.hint,
+            pdfExcerpt: ctx.text.slice(0, 30_000),
           });
-          const json = (await res.json()) as {
-            ok?: boolean;
-            visual?: {
-              title: string;
-              narration: string;
-              kind: CanvasSpec["kind"];
-              chart?: unknown;
-              math?: unknown;
-              diagram?: unknown;
-              table?: unknown;
-              callout?: unknown;
-            };
-            error?: string;
-          };
-          if (!json.ok || !json.visual) throw new Error(json.error ?? "no visual");
+          if (!json.visual) throw new Error(json.error ?? "no visual");
           const v = json.visual;
+
           const payload =
             v.kind === "chart"
               ? ({ kind: "chart", spec: v.chart } as CanvasSpec)
