@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { extractPdfText } from "@/lib/scholar/pdf";
 import { useScholarStore } from "@/lib/scholar/store";
-import { FileText, Loader2, Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
