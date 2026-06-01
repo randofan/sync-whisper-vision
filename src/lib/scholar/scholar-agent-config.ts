@@ -88,10 +88,8 @@ export const SCHOLAR_CLIENT_TOOLS = [
 // Full conversation_config body sent to POST /v1/convai/agents/create.
 // platform_settings.overrides MUST whitelist the fields we override at
 // session start, otherwise ElevenLabs silently ignores the override.
-export function buildScholarAgentCreatePayload() {
+export function buildScholarAgentConfigBody() {
   return {
-    name: SCHOLAR_AGENT_NAME,
-    tags: ["lovable-scholar", "auto-provisioned"],
     conversation_config: {
       agent: {
         language: "en",
@@ -115,3 +113,21 @@ export function buildScholarAgentCreatePayload() {
     },
   };
 }
+
+export function buildScholarAgentCreatePayload() {
+  return {
+    name: SCHOLAR_AGENT_NAME,
+    tags: ["lovable-scholar", "auto-provisioned"],
+    ...buildScholarAgentConfigBody(),
+  };
+}
+
+// PATCH /v1/convai/agents/{id} accepts the same body shape minus name/tags
+// being required. We include `name` so renames stay in sync.
+export function buildScholarAgentUpdatePayload() {
+  return {
+    name: SCHOLAR_AGENT_NAME,
+    ...buildScholarAgentConfigBody(),
+  };
+}
+
