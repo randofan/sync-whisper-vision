@@ -9,6 +9,14 @@ import {
 } from "./agent-tools";
 import { useScholarStore } from "./store";
 beforeEach(() => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("window", {
+    sessionStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
   useScholarStore.setState({
     pdf: { name: "paper.pdf", text: "Paper excerpt about sparse attention and retrieval.", pages: 3, charCount: 64 },
     canvasItems: [],
