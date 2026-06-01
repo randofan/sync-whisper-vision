@@ -289,17 +289,13 @@ export function buildClientTools(host: ToolHost) {
       void (async () => {
         try {
           const ctx = getPdfContext();
-          const res = await fetch("/api/pdf-qa", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              question: params.question,
-              pdfText: ctx.text,
-              pdfTitle: ctx.title,
-            }),
+          const json = await fetchDeepThink({
+            question: params.question,
+            pdfText: ctx.text,
+            pdfTitle: ctx.title,
           });
-          const json = (await res.json()) as { ok?: boolean; answer?: string; error?: string };
-          if (!json.ok) throw new Error(json.error ?? "deep think failed");
+          if (!json.answer) throw new Error(json.error ?? "deep think failed");
+
           store().patchResearch(id, {
             status: "ready",
             summary: json.answer,
