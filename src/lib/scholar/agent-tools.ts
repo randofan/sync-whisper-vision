@@ -5,6 +5,8 @@ export interface ToolHost {
   // Send a contextual update to the live ElevenLabs agent so it can weave the result
   // into its current response without blocking.
   sendContextualUpdate: (text: string) => void;
+  canSendContextualUpdate?: () => boolean;
+  queueContextualUpdate?: (text: string) => void;
 }
 
 let counter = 0;
@@ -179,6 +181,21 @@ export async function fetchDeepThink(
   );
 }
 
+export function deliverContextualUpdate(host: ToolHost, text: string) {
+  if (host.canSendContextualUpdate && !host.canSendContextualUpdate()) {
+    host.queueContextualUpdate?.(text);
+    return false;
+  }
+  try {
+    host.sendContextualUpdate(text);
+    return true;
+  } catch (err) {
+    host.queueContextualUpdate?.(text);
+    if (!host.queueContextualUpdate) console.warn("contextual update dropped", err);
+    return false;
+  }
+}
+
 
 export function buildClientTools(host: ToolHost) {
   const store = useScholarStore.getState;
@@ -223,13 +240,14 @@ export function buildClientTools(host: ToolHost) {
             narration: v.narration || params.hint || "",
             payload,
           });
-          host.sendContextualUpdate(
+          deliverContextualUpdate(
+            host,
             `[VISUAL READY on canvas: "${v.title}" — ${v.narration}]`,
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : "failed";
           store().patchCanvas(id, { status: "error", error: msg });
-          host.sendContextualUpdate(`[VISUAL FAILED for "${params.topic}": ${msg}]`);
+          deliverContextualUpdate(host, `[VISUAL FAILED for "${params.topic}": ${msg}]`);
         }
       })();
 
@@ -263,13 +281,14 @@ export function buildClientTools(host: ToolHost) {
             json.keyPoints && json.keyPoints.length > 0
               ? `\nKey facts:\n- ${json.keyPoints.join("\n- ")}`
               : "";
-          host.sendContextualUpdate(
+          deliverContextualUpdate(
+            host,
             `[BACKGROUND RESEARCH on "${params.query}" — use this as factual grounding, do not read it verbatim]\n${json.summary ?? ""}${bullets}`,
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : "failed";
           store().patchResearch(id, { status: "error", error: msg });
-          host.sendContextualUpdate(`[RESEARCH FAILED for "${params.query}": ${msg}]`);
+          deliverContextualUpdate(host, `[RESEARCH FAILED for "${params.query}": ${msg}]`);
         }
       })();
 
@@ -300,13 +319,14 @@ export function buildClientTools(host: ToolHost) {
             status: "ready",
             summary: json.answer,
           });
-          host.sendContextualUpdate(
+          deliverContextualUpdate(
+            host,
             `[DEEP_THINK RESULT for "${params.question}"]: ${json.answer ?? ""}`,
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : "failed";
           store().patchResearch(id, { status: "error", error: msg });
-          host.sendContextualUpdate(`[DEEP_THINK FAILED: ${msg}]`);
+          deliverContextualUpdate(host, `[DEEP_THINK FAILED: ${msg}]`);
         }
       })();
 

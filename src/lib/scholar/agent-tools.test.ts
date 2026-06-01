@@ -1,11 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildClientTools,
+  deliverContextualUpdate,
   fetchDeepThink,
   fetchIllustration,
   fetchResearchBriefing,
   parseResearchResponse,
 } from "./agent-tools";
+import { useScholarStore } from "./store";
+beforeEach(() => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("window", {
+    sessionStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  useScholarStore.setState({
+    pdf: { name: "paper.pdf", text: "Paper excerpt about sparse attention and retrieval.", pages: 3, charCount: 64 },
+    canvasItems: [],
+    researchItems: [],
+    transcript: [],
+  });
+});
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+const waitForMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("research client response handling", () => {
   it("turns the exact upstream non-JSON body into a controlled error", async () => {
@@ -56,6 +80,7 @@ describe("research client response handling", () => {
       }),
     ).rejects.toThrow(/Research service returned a non-JSON response \(503 Service Unavailable\): upstream request timeout/);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("illustrate client response handling (callout regression)", () => {
@@ -123,4 +148,57 @@ describe("deep-think client response handling", () => {
   });
 });
 
+describe("contextual update dispatch ordering", () => {
+  it("queues contextual updates instead of throwing before the voice session is connected", () => {
+    const sent = vi.fn();
+    const queued: string[] = [];
+
+    const delivered = deliverContextualUpdate(
+      {
+        sendContextualUpdate: sent,
+        canSendContextualUpdate: () => false,
+        queueContextualUpdate: (text) => queued.push(text),
+      },
+      "[BACKGROUND RESEARCH] ready",
+    );
+
+    expect(delivered).toBe(false);
+    expect(sent).not.toHaveBeenCalled();
+    expect(queued).toEqual(["[BACKGROUND RESEARCH] ready"]);
+  });
+
+  it("research tasks still run and queue their result when contextual updates are not ready", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        ok: true,
+        summary: "Recovered background research.",
+        keyPoints: ["Fetched after connection-safe dispatch"],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchImpl);
+    const queued: string[] = [];
+    const sent = vi.fn(() => {
+      throw new Error("session not ready");
+    });
+
+    const tools = buildClientTools({
+      sendContextualUpdate: sent,
+      canSendContextualUpdate: () => false,
+      queueContextualUpdate: (text) => queued.push(text),
+    });
+
+    const response = tools.research({ query: "related work for sparse attention", scope: "both" });
+    expect(response).toMatch(/dispatched/);
+    expect(useScholarStore.getState().researchItems[0]?.status).toBe("pending");
+
+    await waitForMicrotasks();
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/research",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(useScholarStore.getState().researchItems[0]?.status).toBe("ready");
+    expect(sent).not.toHaveBeenCalled();
+    expect(queued.join("\n")).toContain("Recovered background research.");
+  });
 });
