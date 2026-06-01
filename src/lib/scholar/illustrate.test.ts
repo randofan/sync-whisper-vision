@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateMermaid, validateVisual, type Visual } from "./illustrate.server";
+import { normalizeLoose, validateMermaid, validateVisual, type Visual } from "./illustrate.server";
 
 describe("validateMermaid", () => {
   it("accepts a well-formed flowchart", () => {
