@@ -127,15 +127,47 @@ export interface ResearchRunResult {
   toolCalls: number;
 }
 
+type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
+  experimental_output?: unknown;
+  text?: string;
+}>;
+
+export function createFallbackResearch(input: ResearchInput): ResearchResult {
+  const excerpt = input.pdfExcerpt?.replace(/\s+/g, " ").trim();
+  const summary = excerpt
+    ? `Background research is temporarily unavailable, so this briefing is grounded in the uploaded paper excerpt. For "${input.query}", the relevant context is: ${excerpt.slice(0, 700)}`
+    : `Background research is temporarily unavailable. Use the uploaded paper as the primary source while answering this query: ${input.query}`;
+  return {
+    summary,
+    keyPoints: [
+      "External research generation is unavailable right now.",
+      "Continue from the uploaded paper context instead of blocking the conversation.",
+    ],
+  };
+}
+
+function isBillingOrCreditError(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
+}
+
 export async function generateResearch(
   input: ResearchInput,
-  opts: { apiKey?: string; maxAttempts?: number; maxSteps?: number } = {},
+  opts: { apiKey?: string; maxAttempts?: number; maxSteps?: number; generateTextImpl?: GenerateTextLike } = {},
 ): Promise<ResearchRunResult> {
   const apiKey = opts.apiKey || process.env.LOVABLE_API_KEY || "";
-  if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
+  if (!apiKey) {
+    return {
+      result: createFallbackResearch(input),
+      attempts: 0,
+      warnings: ["AI research generation unavailable; returned a local paper-grounded briefing."],
+      toolCalls: 0,
+    };
+  }
   const maxAttempts = opts.maxAttempts ?? 3;
   const maxSteps = opts.maxSteps ?? 8;
   const gateway = createLovableAiGatewayProvider(apiKey);
+  const runGenerateText = (opts.generateTextImpl ?? generateText) as GenerateTextLike;
 
   const models = [
     "google/gemini-2.5-flash",
@@ -193,7 +225,7 @@ ${input.pdfExcerpt ? `\nThe user is reading this paper (excerpt):\n${input.pdfEx
 Investigate using the available tools, then return the JSON briefing.${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } = await generateText({
+      const { experimental_output: rawOut, text } = await runGenerateText({
         model,
         tools,
         stopWhen: stepCountIs(maxSteps),
@@ -236,10 +268,29 @@ Investigate using the available tools, then return the JSON briefing.${correctio
           : err instanceof Error
             ? err.message
             : "unknown generation error";
+      if (isBillingOrCreditError(err)) {
+        return {
+          result: createFallbackResearch(input),
+          attempts: attempt,
+          warnings: [
+            ...warnings,
+            `attempt ${attempt} (${modelId}): AI research generation unavailable; returned a local paper-grounded briefing.`,
+          ],
+          toolCalls: toolCallCount,
+        };
+      }
       lastError = msg;
       warnings.push(`attempt ${attempt} (${modelId}): ${msg}`);
     }
   }
 
-  throw new Error(`Failed to generate research after ${maxAttempts} attempts. Last error: ${lastError}`);
+  return {
+    result: createFallbackResearch(input),
+    attempts: maxAttempts,
+    warnings: [
+      ...warnings,
+      `AI research generation did not return a valid briefing; returned a local paper-grounded briefing.${lastError ? ` Last error: ${lastError}` : ""}`,
+    ],
+    toolCalls: toolCallCount,
+  };
 }
