@@ -51,7 +51,7 @@ export const VisualSchema = z.object({
 
 export type Visual = z.infer<typeof VisualSchema>;
 
-function normalizeLoose(
+export function normalizeLoose(
   raw: z.infer<typeof LooseVisualSchema>,
   fallback: { title: string; narration: string },
 ): { ok: true; visual: Visual } | { ok: false; reason: string } {
@@ -71,6 +71,32 @@ function normalizeLoose(
     return v;
   };
 
+  // Callouts are pure text and the model frequently omits the `callout` field
+  // entirely (putting the body in `narration`, or in misnamed fields like
+  // `text` / `message` / `content` / `note` / `body`). Build a guaranteed-valid
+  // spec from whatever is present so we never crash on missing structure.
+  const coerceCallout = (): { body: string; tone?: "info" | "warn" | "key" } => {
+    const direct = coerce("callout");
+    if (direct && typeof direct === "object") {
+      const o = direct as Record<string, unknown>;
+      const body =
+        (typeof o.body === "string" && o.body) ||
+        (typeof o.text === "string" && o.text) ||
+        (typeof o.message === "string" && o.message) ||
+        (typeof o.content === "string" && o.content) ||
+        (typeof o.note === "string" && o.note) ||
+        narration ||
+        title;
+      const tone =
+        o.tone === "info" || o.tone === "warn" || o.tone === "key"
+          ? (o.tone as "info" | "warn" | "key")
+          : undefined;
+      return tone ? { body: String(body), tone } : { body: String(body) };
+    }
+    // Last resort: synthesize from narration/title so a callout always renders.
+    return { body: narration || title };
+  };
+
   try {
     if (kind === "chart") {
       const spec = ChartSpec.parse(coerce("chart"));
@@ -88,13 +114,14 @@ function normalizeLoose(
       const spec = TableSpec.parse(coerce("table"));
       return { ok: true, visual: { ...base, table: spec } };
     }
-    const spec = CalloutSpec.parse(coerce("callout"));
+    const spec = CalloutSpec.parse(coerceCallout());
     return { ok: true, visual: { ...base, callout: spec } };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "spec parse failed";
     return { ok: false, reason: `kind="${kind}" spec invalid: ${msg}` };
   }
 }
+
 
 const MERMAID_HEADERS = [
   "graph",
