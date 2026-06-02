@@ -228,8 +228,31 @@ type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
   text?: string;
 }>;
 
-const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|note)\b/i;
+const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|quote)\b/i;
 const GENERIC_VISUAL_HINT_RE = /^(chart|line chart|bar chart|area chart|scatter|math|formula|diagram|table|callout)$/i;
+const HEDGE_RE = /\b(does not (provide|contain|include|describe|specify|mention)|not (enough|sufficient) (information|detail|context)|no (explicit|specific) (equations?|formulas?|diagrams?|details?|information)|the (paper|text|excerpt|document) (does not|doesn't|lacks)|insufficient (information|detail|context)|within the provided text|in the provided (text|excerpt))\b/i;
+const META_NARRATION_RE = /^\s*(diagram|chart|table|math|formula|equation|illustration|figure|visualization)\s*:/i;
+
+export function containsHedgeLanguage(text: string | undefined | null): boolean {
+  if (!text) return false;
+  return HEDGE_RE.test(text) || META_NARRATION_RE.test(text);
+}
+
+const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
+  { kind: "math", re: /\b(math|mathematic\w*|equation|formula|formalism|derivation|loss function|theorem|proof|complexity bound)\b/i },
+  { kind: "diagram", re: /\b(diagram|flowchart|flow chart|architecture|pipeline|topology|mindmap|sequence diagram|state machine|tree structure|expander graph|fat tree)\b/i },
+  { kind: "chart", re: /\b(chart|plot|trend|line chart|bar chart|scatter|histogram|curve)\b/i },
+  { kind: "table", re: /\b(table|matrix|comparison table)\b/i },
+];
+
+export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | null {
+  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  if (CALLOUT_HINT_RE.test(text)) return "callout";
+  for (const { kind, re } of KIND_KEYWORDS) {
+    if (re.test(text)) return kind;
+  }
+  return null;
+}
 
 export function createFallbackCalloutVisual(input: IllustrateInput): Visual {
   const hint = input.hint?.replace(/\bcallout\b:?/gi, "").replace(/\s+/g, " ").trim();
@@ -248,7 +271,7 @@ export function isBillingOrCreditError(err: unknown) {
 }
 
 function shouldRenderLocalCallout(input: IllustrateInput) {
-  return CALLOUT_HINT_RE.test(`${input.hint ?? ""} ${input.topic ?? ""}`);
+  return detectRequestedKind(input) === "callout";
 }
 
 export async function generateVisual(
