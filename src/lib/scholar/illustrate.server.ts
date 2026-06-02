@@ -350,6 +350,21 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
         warnings.push(`attempt ${attempt} (${modelId}): ${check.reason}`);
         continue;
       }
+      const requestedKind = detectRequestedKind(input);
+      if (requestedKind && requestedKind !== "callout" && normalized.visual.kind !== requestedKind) {
+        lastError = `requested kind="${requestedKind}" but model returned kind="${normalized.visual.kind}". Re-generate as ${requestedKind} using canonical textbook knowledge if the paper lacks specifics.`;
+        warnings.push(`attempt ${attempt} (${modelId}): ${lastError}`);
+        continue;
+      }
+      const hedgeSource = [
+        normalized.visual.narration,
+        normalized.visual.callout?.body,
+      ].find((t) => containsHedgeLanguage(t));
+      if (hedgeSource) {
+        lastError = `output contained hedge/meta language ("${hedgeSource.slice(0, 120)}"). Re-generate with concrete content using canonical textbook knowledge if the paper lacks specifics. No meta-commentary about the paper's contents.`;
+        warnings.push(`attempt ${attempt} (${modelId}): hedge language detected`);
+        continue;
+      }
       return { visual: normalized.visual, attempts: attempt, warnings };
     } catch (err) {
       const msg =
