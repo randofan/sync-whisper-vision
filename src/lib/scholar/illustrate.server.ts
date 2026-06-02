@@ -179,25 +179,37 @@ export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: s
 
 const SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
 
-KIND SELECTION (in priority order — pick the first that fits):
-1. "diagram" — for processes, architectures, pipelines, relationships, taxonomies, contribution maps, ablation structure. If the topic is a list of contributions/components/steps, render it as a mermaid mindmap or flowchart showing how the pieces relate, NOT as a callout.
-2. "table" — for comparisons, parameters, ablations, datasets, baselines, hyperparameters, contribution-vs-impact matrices. Prefer 3-6 columns and 3-8 rows of substantive content.
-3. "chart" — for any quantitative trend/comparison. ALWAYS include 8-15 realistic illustrative data points inferred from the paper (label them clearly; do not fabricate precise unstated numbers — round and note that they are illustrative in the narration).
-4. "math" — for formulas, losses, derivations, complexity. Each step is a KaTeX string (no $ delimiters).
-5. "callout" — FORBIDDEN unless the user explicitly asked for a quote, definition, or one-line takeaway. A list of N items is NEVER a callout — render it as a mindmap diagram or a table.
+KIND SELECTION (pick the first that fits, UNLESS the topic/hint explicitly requests a specific kind — then you MUST honor it):
+1. "diagram" — processes, architectures, pipelines, relationships, taxonomies, contribution maps. Lists of contributions/components/steps render as mermaid mindmap/flowchart, NOT a callout.
+2. "table" — comparisons, parameters, ablations, datasets, baselines. Prefer 3-6 columns and 3-8 rows of substantive content.
+3. "chart" — quantitative trends/comparisons. Include 8-15 realistic illustrative data points; mark them illustrative in the narration if inferred.
+4. "math" — formulas, losses, derivations, complexity, mathematical definitions. Each step is a KaTeX string (no $ delimiters).
+5. "callout" — FORBIDDEN unless the user explicitly asked for a quote, definition sentence, or one-line takeaway.
 
-QUALITY BAR (hard rules):
-- The visualization MUST add information beyond restating the title. Never produce a slide whose body is just "A summary of X" or "Overview of Y".
-- If the topic is plural (contributions, methods, results, components, datasets), the slide MUST enumerate the actual items with substance — not a placeholder sentence.
-- "narration" is ONE short sentence (≤20 words) describing what's on screen, written for a voice agent to read while the visual renders. It must reference concrete content from the visual, not meta-description.
-- "title" is ≤60 chars, specific (e.g. "Unweight: 6 Core Contributions" not "Core Technical Contributions").
+REQUESTED-KIND RULE (CRITICAL):
+- Topic/hint mentions "math", "equation", "formula", "formalism", "derivation", "theorem" → MUST return kind="math" with real KaTeX steps.
+- Mentions "diagram", "flow", "architecture", "pipeline", "graph", "topology", "tree" → MUST return kind="diagram" with valid mermaid.
+- Mentions "chart", "plot", "trend" → MUST return kind="chart".
+- Mentions "table", "matrix" → MUST return kind="table".
+- NEVER substitute a callout when the user asked for one of the above.
+
+NO-HEDGE RULE (CRITICAL):
+- NEVER produce text like "the paper does not provide", "no explicit equations", "not enough information", "the text does not contain", "insufficient detail", or any meta-commentary about the paper's contents.
+- If the paper excerpt lacks specifics, fall back to CANONICAL TEXTBOOK KNOWLEDGE of the topic (standard definitions, well-known equations, classical diagrams of the concept) and produce the visual from that. Note "illustrative" in the narration if needed, but DELIVER the visualization.
+- Narration MUST describe concrete on-screen content. Never start narration with "Diagram:", "Chart:", "A summary of", "Overview of", or similar meta-labels.
+
+QUALITY BAR:
+- Add information beyond restating the title. No slides whose body is just "A summary of X".
+- Plural topics enumerate the actual items with substance.
+- "narration" ≤20 words, references concrete content.
+- "title" ≤60 chars, specific.
 
 DIAGRAM SYNTAX:
 - First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
-- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node carrying a short descriptor.
-- Keep node labels short and ASCII; wrap multi-word labels in quotes inside [ ]. Balance all brackets.
+- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
+- Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
 
-OUTPUT: Populate ONLY the chosen kind's spec field; leave the other spec fields undefined/null. The "kind" field MUST match the populated spec field.`;
+OUTPUT: Populate ONLY the chosen kind's spec field. The "kind" field MUST match the populated spec.`;
 
 export interface IllustrateInput {
   topic: string;
@@ -216,8 +228,31 @@ type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
   text?: string;
 }>;
 
-const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|note)\b/i;
+const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|quote)\b/i;
 const GENERIC_VISUAL_HINT_RE = /^(chart|line chart|bar chart|area chart|scatter|math|formula|diagram|table|callout)$/i;
+const HEDGE_RE = /\b(does not (provide|contain|include|describe|specify|mention)|not (enough|sufficient) (information|detail|context)|no (explicit|specific) (equations?|formulas?|diagrams?|details?|information)|the (paper|text|excerpt|document) (does not|doesn't|lacks)|insufficient (information|detail|context)|within the provided text|in the provided (text|excerpt))\b/i;
+const META_NARRATION_RE = /^\s*(diagram|chart|table|math|formula|equation|illustration|figure|visualization)\s*:/i;
+
+export function containsHedgeLanguage(text: string | undefined | null): boolean {
+  if (!text) return false;
+  return HEDGE_RE.test(text) || META_NARRATION_RE.test(text);
+}
+
+const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
+  { kind: "math", re: /\b(math|mathematic\w*|equation|formula|formalism|derivation|loss function|theorem|proof|complexity bound)\b/i },
+  { kind: "diagram", re: /\b(diagram|flowchart|flow chart|architecture|pipeline|topology|mindmap|sequence diagram|state machine|tree structure|expander graph|fat tree)\b/i },
+  { kind: "chart", re: /\b(chart|plot|trend|line chart|bar chart|scatter|histogram|curve)\b/i },
+  { kind: "table", re: /\b(table|matrix|comparison table)\b/i },
+];
+
+export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | null {
+  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  if (CALLOUT_HINT_RE.test(text)) return "callout";
+  for (const { kind, re } of KIND_KEYWORDS) {
+    if (re.test(text)) return kind;
+  }
+  return null;
+}
 
 export function createFallbackCalloutVisual(input: IllustrateInput): Visual {
   const hint = input.hint?.replace(/\bcallout\b:?/gi, "").replace(/\s+/g, " ").trim();
@@ -236,7 +271,7 @@ export function isBillingOrCreditError(err: unknown) {
 }
 
 function shouldRenderLocalCallout(input: IllustrateInput) {
-  return CALLOUT_HINT_RE.test(`${input.hint ?? ""} ${input.topic ?? ""}`);
+  return detectRequestedKind(input) === "callout";
 }
 
 export async function generateVisual(
@@ -313,6 +348,21 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
       if (!check.ok) {
         lastError = check.reason;
         warnings.push(`attempt ${attempt} (${modelId}): ${check.reason}`);
+        continue;
+      }
+      const requestedKind = detectRequestedKind(input);
+      if (requestedKind && requestedKind !== "callout" && normalized.visual.kind !== requestedKind) {
+        lastError = `requested kind="${requestedKind}" but model returned kind="${normalized.visual.kind}". Re-generate as ${requestedKind} using canonical textbook knowledge if the paper lacks specifics.`;
+        warnings.push(`attempt ${attempt} (${modelId}): ${lastError}`);
+        continue;
+      }
+      const hedgeSource = [
+        normalized.visual.narration,
+        normalized.visual.callout?.body,
+      ].find((t) => containsHedgeLanguage(t));
+      if (hedgeSource) {
+        lastError = `output contained hedge/meta language ("${hedgeSource.slice(0, 120)}"). Re-generate with concrete content using canonical textbook knowledge if the paper lacks specifics. No meta-commentary about the paper's contents.`;
+        warnings.push(`attempt ${attempt} (${modelId}): hedge language detected`);
         continue;
       }
       return { visual: normalized.visual, attempts: attempt, warnings };

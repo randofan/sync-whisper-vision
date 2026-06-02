@@ -34,7 +34,7 @@ function SlideCard({
           <h3 className="mt-1 text-base font-semibold text-foreground truncate leading-tight">
             {item.title}
           </h3>
-          {item.narration && (
+          {item.narration && !(item.status === "ready" && item.payload?.kind === "callout") && (
             <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.narration}</p>
           )}
         </div>
