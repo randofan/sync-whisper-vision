@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateVisual, normalizeLoose, validateMermaid, validateVisual, type Visual } from "./illustrate.server";
+import {
+  containsHedgeLanguage,
+  detectRequestedKind,
+  generateVisual,
+  normalizeLoose,
+  validateMermaid,
+  validateVisual,
+  type Visual,
+} from "./illustrate.server";
 
 describe("validateMermaid", () => {
   it("accepts a well-formed flowchart", () => {
