@@ -16,7 +16,7 @@ runIf("illustrate live generation", () => {
           pdfExcerpt:
             "BFloat16 (BF16) is a 16-bit floating-point format with 1 sign bit, 8 exponent bits, and 7 mantissa bits. Decomposition extracts these three components from a 32-bit FP32 representation. Reconstruction reassembles them back into FP32 by zero-padding the mantissa.",
         },
-        { apiKey, maxAttempts: 4 },
+        { maxAttempts: 4 },
       );
       expect(validateVisual(result.visual).ok).toBe(true);
       // If the AI gateway is unavailable (e.g. no credits in the test workspace),
@@ -38,7 +38,7 @@ runIf("illustrate live generation", () => {
           topic: "Training loop for a transformer language model",
           hint: "Return kind=diagram with a mermaid flowchart of: data -> tokenize -> forward pass -> loss -> backprop -> optimizer step -> repeat",
         },
-        { apiKey, maxAttempts: 4 },
+        { maxAttempts: 4 },
       );
       expect(validateVisual(result.visual).ok).toBe(true);
       console.log(
