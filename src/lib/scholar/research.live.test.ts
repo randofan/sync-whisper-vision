@@ -16,7 +16,7 @@ runIf("research live deep agent", () => {
           pdfExcerpt:
             "Unweight: Lossless MLP Weight Compression for LLM Inference. We present a composable GPU toolkit for dense inference and MoE serving, focused on lossless compression of weight tensors via bit-level decomposition (sign, exponent, mantissa for BF16).",
         },
-        { apiKey, maxAttempts: 3 },
+        { maxAttempts: 3 },
       );
       expect(result.summary.length).toBeGreaterThan(80);
       // The voice agent should never speak URLs.
@@ -37,7 +37,7 @@ runIf("research live deep agent", () => {
     async () => {
       const { result, toolCalls } = await generateResearch(
         { query: "key concepts in lossless model weight compression" },
-        { apiKey, maxAttempts: 3 },
+        { maxAttempts: 3 },
       );
       expect(result.summary.length).toBeGreaterThan(40);
       console.log("vague toolCalls:", toolCalls);
