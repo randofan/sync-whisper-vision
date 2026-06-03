@@ -36,6 +36,9 @@ function Index() {
     }
     setParsing(true);
     try {
+      // Clear any prior session state (transcript, canvas, research, prior PDF)
+      // so a freshly uploaded PDF starts with no leftover context.
+      resetStore();
       const { text, pages } = await extractPdfText(file, (p, t) =>
         setProgress(`Parsing page ${p}/${t}…`),
       );
