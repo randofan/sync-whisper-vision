@@ -433,10 +433,11 @@ export async function generateVisual(
 
   const apiKey = opts.apiKey || process.env.LOVABLE_API_KEY || "";
   if (!apiKey) {
+    const fallback = createFallbackVisual(input);
     return {
-      visual: createFallbackCalloutVisual(input),
+      visual: fallback,
       attempts: 0,
-      warnings: ["AI visual generation unavailable; rendered a local callout."],
+      warnings: [`AI visual generation unavailable; rendered a local ${fallback.kind}.`],
     };
   }
   const maxAttempts = opts.maxAttempts ?? 4;
