@@ -1,6 +1,11 @@
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway";
+import {
+  CLOUDFLARE_MODELS,
+  resolveAiProvider,
+  type AiProviderEnv,
+  type ResolvedAiProvider,
+} from "@/lib/ai-gateway";
 
 const ChartSpec = z.object({
   chartType: z.enum(["line", "bar", "area", "scatter"]),
@@ -216,6 +221,13 @@ export interface IllustrateInput {
   topic: string;
   hint?: string;
   pdfExcerpt?: string;
+  /**
+   * Titles + kinds of slides already on the canvas, newest first. We surface
+   * these to the model so it never repeats a slide back-to-back; one of the
+   * regressions we hit was the same RNG-vs-fat-tree table appearing on every
+   * slide because nothing in the loop checked prior visuals.
+   */
+  recentVisuals?: Array<{ title: string; kind: Visual["kind"] }>;
 }
 
 export interface IllustrateResult {
@@ -427,42 +439,60 @@ function shouldRenderLocalCallout(input: IllustrateInput) {
 
 export async function generateVisual(
   input: IllustrateInput,
-  opts: { apiKey?: string; maxAttempts?: number; generateTextImpl?: GenerateTextLike } = {},
+  opts: {
+    apiKey?: string;
+    env?: AiProviderEnv;
+    resolvedProvider?: ResolvedAiProvider;
+    maxAttempts?: number;
+    generateTextImpl?: GenerateTextLike;
+  } = {},
 ): Promise<IllustrateResult> {
   if (shouldRenderLocalCallout(input)) {
     return { visual: createFallbackCalloutVisual(input), attempts: 0, warnings: [] };
   }
 
-  const apiKey = opts.apiKey || process.env.LOVABLE_API_KEY || "";
-  if (!apiKey) {
-    const fallback = createFallbackVisual(input);
-    return {
-      visual: fallback,
-      attempts: 0,
-      warnings: [`AI visual generation unavailable; rendered a local ${fallback.kind}.`],
-    };
+  let resolved: ResolvedAiProvider;
+  try {
+    resolved =
+      opts.resolvedProvider ??
+      resolveAiProvider(
+        opts.env ?? {
+          cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+          cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+          lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
+        },
+      );
+  } catch (err) {
+    // Surface the real reason — silently rendering a stub was hiding outages.
+    throw err instanceof Error ? err : new Error(String(err));
   }
+
   const maxAttempts = opts.maxAttempts ?? 4;
-  const gateway = createLovableAiGatewayProvider(apiKey);
   const runGenerateText = (opts.generateTextImpl ?? generateText) as GenerateTextLike;
 
-  const models = [
-    "google/gemini-3-flash-preview",
-    "google/gemini-2.5-flash",
-    "google/gemini-2.5-pro",
-  ];
+  const models =
+    resolved.source === "cloudflare"
+      ? [CLOUDFLARE_MODELS.primary, CLOUDFLARE_MODELS.secondary, CLOUDFLARE_MODELS.tertiary]
+      : ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro"];
 
   const warnings: string[] = [];
   let lastError = "";
 
+  const recent = (input.recentVisuals ?? []).slice(0, 6);
+  const recentBlock = recent.length
+    ? `\nSlides already on the canvas (newest first) — DO NOT repeat any of these titles, and pick a DIFFERENT "kind" than the most recent one unless the user explicitly asked for the same kind:\n${recent
+        .map((r, i) => `${i + 1}. ${r.kind}: ${r.title}`)
+        .join("\n")}\n`
+    : "";
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const modelId = models[Math.min(attempt - 1, models.length - 1)];
-    const model = gateway(modelId);
+    const model = resolved.provider(modelId);
     const correction = lastError
       ? `\n\nPREVIOUS ATTEMPT FAILED: ${lastError}\nReturn a corrected, complete JSON object that matches the schema exactly.`
       : "";
     const prompt = `Topic: ${input.topic}
-${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${correction}`;
+${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${recentBlock}${correction}`;
 
     try {
       const { experimental_output: rawOut, text } = await runGenerateText({
@@ -535,28 +565,17 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
             ? err.message
             : "unknown generation error";
       if (isBillingOrCreditError(err)) {
-        const fallback = createFallbackVisual(input);
-        return {
-          visual: fallback,
-          attempts: attempt,
-          warnings: [
-            ...warnings,
-            `attempt ${attempt} (${modelId}): AI visual generation unavailable; rendered a local ${fallback.kind}.`,
-          ],
-        };
+        // Surface visibly — silent stubs were hiding real outages.
+        throw new Error(
+          `${resolved.source === "cloudflare" ? "Cloudflare Workers AI" : "Lovable AI"} rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
+        );
       }
       lastError = msg;
       warnings.push(`attempt ${attempt} (${modelId}): ${msg}`);
     }
   }
 
-  const fallback = createFallbackVisual(input);
-  return {
-    visual: fallback,
-    attempts: maxAttempts,
-    warnings: [
-      ...warnings,
-      `AI visual generation did not return a valid spec; rendered a local ${fallback.kind}.${lastError ? ` Last error: ${lastError}` : ""}`,
-    ],
-  };
+  throw new Error(
+    `Failed to generate a valid visual after ${maxAttempts} attempts via ${resolved.source}. Last error: ${lastError || "unknown"}. Warnings: ${warnings.join(" | ")}`,
+  );
 }

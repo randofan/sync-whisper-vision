@@ -40,20 +40,25 @@ describe("normalizeResearch", () => {
   });
 });
 
-describe("generateResearch fallback behavior", () => {
-  it("returns a paper-grounded fallback instead of surfacing Payment Required", async () => {
+describe("generateResearch failure surfacing", () => {
+  it("throws a visible Payment Required error instead of fabricating a stub briefing", async () => {
     const generateTextImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
 
-    const result = await generateResearch(
-      {
-        query: "related work for lossless BF16 compression",
-        pdfExcerpt: "Unweight separates BF16 values into sign, exponent, and mantissa fields.",
-      },
-      { apiKey: "test-key", maxAttempts: 3, generateTextImpl },
-    );
-
+    await expect(
+      generateResearch(
+        {
+          query: "related work for lossless BF16 compression",
+          pdfExcerpt: "Unweight separates BF16 values into sign, exponent, and mantissa fields.",
+        },
+        { env: { lovableApiKey: "test-key" }, maxAttempts: 3, generateTextImpl },
+      ),
+    ).rejects.toThrow(/credits exhausted|unpaid/i);
     expect(generateTextImpl).toHaveBeenCalledTimes(1);
-    expect(result.result.summary).toContain("uploaded paper excerpt");
-    expect(result.warnings.join("\n")).not.toMatch(/Payment Required/);
+  });
+
+  it("throws when no AI provider is configured", async () => {
+    await expect(
+      generateResearch({ query: "anything" }, { env: {}, maxAttempts: 1 }),
+    ).rejects.toThrow(/No AI provider configured/);
   });
 });
