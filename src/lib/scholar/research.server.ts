@@ -158,27 +158,33 @@ function isBillingOrCreditError(err: unknown) {
 
 export async function generateResearch(
   input: ResearchInput,
-  opts: { apiKey?: string; maxAttempts?: number; maxSteps?: number; generateTextImpl?: GenerateTextLike } = {},
+  opts: {
+    apiKey?: string;
+    env?: AiProviderEnv;
+    resolvedProvider?: ResolvedAiProvider;
+    maxAttempts?: number;
+    maxSteps?: number;
+    generateTextImpl?: GenerateTextLike;
+  } = {},
 ): Promise<ResearchRunResult> {
-  const apiKey = opts.apiKey || process.env.LOVABLE_API_KEY || "";
-  if (!apiKey) {
-    return {
-      result: createFallbackResearch(input),
-      attempts: 0,
-      warnings: ["AI research generation unavailable; returned a local paper-grounded briefing."],
-      toolCalls: 0,
-    };
-  }
+  const resolved =
+    opts.resolvedProvider ??
+    resolveAiProvider(
+      opts.env ?? {
+        cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+        cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+        lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
+      },
+    );
+
   const maxAttempts = opts.maxAttempts ?? 3;
   const maxSteps = opts.maxSteps ?? 8;
-  const gateway = createLovableAiGatewayProvider(apiKey);
   const runGenerateText = (opts.generateTextImpl ?? generateText) as GenerateTextLike;
 
-  const models = [
-    "google/gemini-2.5-flash",
-    "google/gemini-2.5-pro",
-    "google/gemini-3-flash-preview",
-  ];
+  const models =
+    resolved.source === "cloudflare"
+      ? [CLOUDFLARE_MODELS.primary, CLOUDFLARE_MODELS.secondary, CLOUDFLARE_MODELS.tertiary]
+      : ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-3-flash-preview"];
 
   const warnings: string[] = [];
   let lastError = "";
@@ -221,7 +227,7 @@ export async function generateResearch(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const modelId = models[Math.min(attempt - 1, models.length - 1)];
-    const model = gateway(modelId);
+    const model = resolved.provider(modelId);
     const correction = lastError
       ? `\n\nPREVIOUS ATTEMPT FAILED: ${lastError}\nProduce a corrected JSON briefing that matches the schema exactly.`
       : "";
@@ -274,28 +280,17 @@ Investigate using the available tools, then return the JSON briefing.${correctio
             ? err.message
             : "unknown generation error";
       if (isBillingOrCreditError(err)) {
-        return {
-          result: createFallbackResearch(input),
-          attempts: attempt,
-          warnings: [
-            ...warnings,
-            `attempt ${attempt} (${modelId}): AI research generation unavailable; returned a local paper-grounded briefing.`,
-          ],
-          toolCalls: toolCallCount,
-        };
+        throw new Error(
+          `${resolved.source === "cloudflare" ? "Cloudflare Workers AI" : "Lovable AI"} rejected the research request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
+        );
       }
       lastError = msg;
       warnings.push(`attempt ${attempt} (${modelId}): ${msg}`);
     }
   }
 
-  return {
-    result: createFallbackResearch(input),
-    attempts: maxAttempts,
-    warnings: [
-      ...warnings,
-      `AI research generation did not return a valid briefing; returned a local paper-grounded briefing.${lastError ? ` Last error: ${lastError}` : ""}`,
-    ],
-    toolCalls: toolCallCount,
-  };
+  throw new Error(
+    `Failed to generate a valid research briefing after ${maxAttempts} attempts via ${resolved.source}. Last error: ${lastError || "unknown"}. Warnings: ${warnings.join(" | ")}`,
+  );
+}
 }
