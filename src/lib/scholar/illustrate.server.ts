@@ -515,6 +515,15 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
         warnings.push(`attempt ${attempt} (${modelId}): hedge language detected`);
         continue;
       }
+      const promptLikeSource = [
+        normalized.visual.narration,
+        normalized.visual.callout?.body,
+      ].find((t) => isPromptLikeVisualText(t));
+      if (promptLikeSource) {
+        lastError = `output repeated the visualization prompt instead of rendering content ("${promptLikeSource.slice(0, 120)}"). Return concrete rows, equations, chart points, or mermaid nodes.`;
+        warnings.push(`attempt ${attempt} (${modelId}): prompt-like visual text detected`);
+        continue;
+      }
       return { visual: normalized.visual, attempts: attempt, warnings };
     } catch (err) {
       const msg =
