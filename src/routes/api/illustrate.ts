@@ -8,6 +8,7 @@ interface ReqBody {
   topic?: string;
   hint?: string;
   pdfExcerpt?: string;
+  recentVisuals?: Array<{ title: string; kind: string }>;
 }
 
 export const Route = createFileRoute("/api/illustrate")({
