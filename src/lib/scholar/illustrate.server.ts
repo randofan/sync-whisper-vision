@@ -1,6 +1,11 @@
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway";
+import {
+  CLOUDFLARE_MODELS,
+  resolveAiProvider,
+  type AiProviderEnv,
+  type ResolvedAiProvider,
+} from "@/lib/ai-gateway";
 
 const ChartSpec = z.object({
   chartType: z.enum(["line", "bar", "area", "scatter"]),
