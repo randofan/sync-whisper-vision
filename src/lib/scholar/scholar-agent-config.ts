@@ -25,7 +25,7 @@ export const SCHOLAR_CLIENT_TOOLS = [
     type: "client" as const,
     name: "visualize",
     description:
-      "Render a chart, diagram, table, math derivation, or callout on the user's canvas illustrating the topic. Fire-and-forget — does NOT block the conversation. Call this at the start of EVERY response.",
+      "Render a concrete chart, diagram, table, or math derivation on the user's canvas. Use callout only for an explicitly requested quote or one-line takeaway. Fire-and-forget — does NOT block the conversation. Call this at the start of EVERY response.",
     expects_response: false,
     parameters: {
       type: "object",
@@ -38,7 +38,7 @@ export const SCHOLAR_CLIENT_TOOLS = [
         hint: {
           type: "string",
           description:
-            "Optional hint about what kind of visual to render (chart/table/diagram/math/callout) and what angle to emphasize.",
+            "Desired visual type plus concrete contents, e.g. 'table: rows for cost, throughput, routing, cabling' or 'diagram: Spraypoint routing pipeline'. Do not pass prose like 'a table summarizing...'.",
         },
       },
       required: ["topic"],
