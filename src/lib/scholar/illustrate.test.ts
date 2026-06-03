@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   containsHedgeLanguage,
+  createFallbackVisual,
   detectRequestedKind,
   generateVisual,
+  isPromptLikeVisualText,
   normalizeLoose,
   validateMermaid,
   validateVisual,
