@@ -23,6 +23,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const setPdf = useScholarStore((s) => s.setPdf);
+  const resetStore = useScholarStore((s) => s.reset);
 
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string>("");
