@@ -214,6 +214,52 @@ describe("containsHedgeLanguage", () => {
   });
 });
 
+describe("prompt-like visual text guardrails", () => {
+  it.each([
+    "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput.",
+    "summarizing the core problem and solution presented in the paper.",
+    "Callout summarizing the contribution list.",
+  ])("flags prompt text rendered as a visual: %s", (s) => {
+    expect(isPromptLikeVisualText(s)).toBe(true);
+  });
+
+  it("does not treat a prompt-ish callout hint as an explicit callout request", () => {
+    expect(
+      detectRequestedKind({
+        topic: "RNG: Flat Datacenter Networks at Scale",
+        hint: "Callout summarizing the core problem and solution presented in the paper.",
+      }),
+    ).toBeNull();
+  });
+
+  it("builds a structured table fallback for the exact RNG vs Fat Tree regression", () => {
+    const visual = createFallbackVisual({
+      topic: "RNG vs. Fat Tree Performance Comparison",
+      hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+      pdfExcerpt: "RNG topologies are 9–45% cheaper than fat trees and offer higher throughput.",
+    });
+
+    expect(visual.kind).toBe("table");
+    expect(visual.table?.rows.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(visual.table)).toContain("9–45% lower");
+    expect(isPromptLikeVisualText(visual.narration)).toBe(false);
+    expect(validateVisual(visual)).toEqual({ ok: true });
+  });
+
+  it("builds a structured diagram fallback for the exact callout-summary regression", () => {
+    const visual = createFallbackVisual({
+      topic: "RNG: Flat Datacenter Networks at Scale",
+      hint: "Callout summarizing the core problem and solution presented in the paper.",
+      pdfExcerpt: "RNG uses Spraypoint and ShuffleBox to address routing and cabling challenges.",
+    });
+
+    expect(visual.kind).toBe("diagram");
+    expect(visual.diagram?.mermaid).toContain("Spraypoint");
+    expect(visual.diagram?.mermaid).toContain("ShuffleBox");
+    expect(validateVisual(visual)).toEqual({ ok: true });
+  });
+});
+
 describe("generateVisual — kind enforcement and hedge rejection (regression)", () => {
   it("retries when the model returns a callout for a math request, never accepting hedge text", async () => {
     const hedgeCallout = {
