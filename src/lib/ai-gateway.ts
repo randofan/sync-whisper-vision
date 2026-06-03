@@ -66,8 +66,8 @@ export function readAiProviderEnv(): AiProviderEnv {
  * /v1/chat/completions endpoint.
  */
 export const CLOUDFLARE_MODELS = {
-  // Primary chat: strong instruction following with function calling, fp8 fast.
-  primary: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  // Primary chat: strong instruction following with function calling.
+  primary: "@cf/zai-org/glm-4.7-flash",
   // Retry with a different model family to get an independent attempt.
   secondary: "@cf/meta/llama-4-scout-17b-16e-instruct",
   // Final retry with a function-calling-tuned smaller model.
