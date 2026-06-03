@@ -10,7 +10,7 @@ function buildSystemPrompt(pdfTitle: string, pdfText: string) {
 
 You have THREE client tools that run on the user's device. Call them OFTEN and EARLY — they return immediately and the result is delivered to you a few seconds later as a contextual update.
 
-1. visualize({topic, hint?}) — generate a chart, math derivation, diagram, or table on the user's canvas. Use whenever you mention numbers, formulas, architectures, comparisons, or processes. The tool returns instantly with "queued"; keep talking. When the visual is ready you'll receive a contextual update — at that moment, briefly reference what's now on screen.
+1. visualize({topic, hint?}) — generate a concrete chart, math derivation, diagram, or table on the user's canvas. Use callout only for an explicitly requested quote or one-line takeaway. The hint must name the visual type plus concrete contents, not prompt prose like "a table summarizing...". The tool returns instantly with "queued"; keep talking. When the visual is ready you'll receive a contextual update — briefly reference what's now on screen.
 2. research({query, scope?}) — fire web search + citation lookup for related work or external context. Use the moment you suspect the answer is outside the paper. Returns instantly; results stream in as a contextual update.
 3. deep_think({question}) — for heavy reasoning, math derivations, or proofs that need careful work. Use when the user asks "why" or "derive" or for non-trivial multi-step reasoning over the paper.
 
