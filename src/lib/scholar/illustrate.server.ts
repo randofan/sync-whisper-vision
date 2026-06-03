@@ -245,13 +245,14 @@ export function isPromptLikeVisualText(text: string | undefined | null): boolean
 
 const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
   { kind: "math", re: /\b(math|mathematic\w*|equation|formula|formalism|derivation|loss function|theorem|proof|complexity bound)\b/i },
-  { kind: "diagram", re: /\b(diagram|flowchart|flow chart|architecture|pipeline|topology|mindmap|sequence diagram|state machine|tree structure|expander graph|fat tree)\b/i },
-  { kind: "chart", re: /\b(chart|plot|trend|line chart|bar chart|scatter|histogram|curve)\b/i },
   { kind: "table", re: /\b(table|matrix|comparison table)\b/i },
+  { kind: "chart", re: /\b(chart|plot|trend|line chart|bar chart|scatter|histogram|curve)\b/i },
+  { kind: "diagram", re: /\b(diagram|flowchart|flow chart|architecture|pipeline|topology|mindmap|sequence diagram|state machine|tree structure|expander graph|fat tree)\b/i },
 ];
 
 export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | null {
   const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  if (/\bcallout\s*:/i.test(input.hint ?? "") && !isPromptLikeVisualText(input.hint)) return "callout";
   if (EXPLICIT_CALLOUT_RE.test(text)) return "callout";
   for (const { kind, re } of KIND_KEYWORDS) {
     if (re.test(text)) return kind;
