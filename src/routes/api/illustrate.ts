@@ -23,13 +23,18 @@ export const Route = createFileRoute("/api/illustrate")({
             headers: corsHeaders,
           });
         }
-        const apiKey = process.env.LOVABLE_API_KEY;
+        const allowedKinds = new Set(["chart", "math", "diagram", "table", "callout"]);
+        const recentVisuals = (body.recentVisuals ?? [])
+          .filter((r) => r && typeof r.title === "string" && allowedKinds.has(r.kind))
+          .slice(0, 6) as Array<{ title: string; kind: "chart" | "math" | "diagram" | "table" | "callout" }>;
 
         try {
-          const result = await generateVisual(
-            { topic, hint: body.hint, pdfExcerpt: body.pdfExcerpt },
-            { apiKey },
-          );
+          const result = await generateVisual({
+            topic,
+            hint: body.hint,
+            pdfExcerpt: body.pdfExcerpt,
+            recentVisuals,
+          });
           if (result.warnings.length > 0) {
             console.warn("illustrate retries", result.warnings);
           }
