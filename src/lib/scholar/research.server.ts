@@ -6,7 +6,12 @@ import {
   tool,
 } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway";
+import {
+  CLOUDFLARE_MODELS,
+  resolveAiProvider,
+  type AiProviderEnv,
+  type ResolvedAiProvider,
+} from "@/lib/ai-gateway";
 
 export const ResearchSchema = z.object({
   summary: z
