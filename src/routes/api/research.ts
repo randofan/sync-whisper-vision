@@ -22,13 +22,11 @@ export const Route = createFileRoute("/api/research")({
             headers: corsHeaders,
           });
         }
-        const apiKey = process.env.LOVABLE_API_KEY;
-
         try {
-          const { result, attempts, warnings, toolCalls } = await generateResearch(
-            { query, pdfExcerpt: body.pdfExcerpt },
-            { apiKey },
-          );
+          const { result, attempts, warnings, toolCalls } = await generateResearch({
+            query,
+            pdfExcerpt: body.pdfExcerpt,
+          });
 
           if (warnings.length > 0) {
             console.warn("research retries", warnings);
