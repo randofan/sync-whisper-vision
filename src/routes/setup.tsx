@@ -9,12 +9,12 @@ export const Route = createFileRoute("/setup")({
 const VISUALIZE_SCHEMA = `{
   "type": "client",
   "name": "visualize",
-  "description": "Generate a chart, math derivation, diagram, table, or callout on the user's canvas. Returns instantly; the actual visual streams in via a contextual update a few seconds later. Call frequently — whenever you mention numbers, formulas, architectures, or comparisons.",
+  "description": "Generate a concrete chart, math derivation, diagram, or table on the user's canvas. Use callout only for an explicit quote or one-line takeaway. Returns instantly; the actual visual streams in via a contextual update a few seconds later.",
   "expects_response": false,
   "response_timeout_secs": 1,
   "parameters": [
     { "id": "topic", "type": "string", "description": "What to visualize, e.g. 'Simulated annealing energy landscape'", "required": true, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" },
-    { "id": "hint", "type": "string", "description": "Optional preferred form: 'line chart', 'flow diagram', 'derivation', etc.", "required": false, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" }
+    { "id": "hint", "type": "string", "description": "Preferred form plus concrete contents, e.g. 'table: cost, throughput, routing rows' or 'diagram: routing pipeline'.", "required": false, "value_type": "llm_prompt", "dynamic_variable": "", "constant_value": "" }
   ],
   "dynamic_variables": { "dynamic_variable_placeholders": {} },
   "assignments": [],

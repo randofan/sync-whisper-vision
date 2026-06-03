@@ -12,7 +12,7 @@ export const SCHOLAR_BASE_PROMPT = `You are "Scholar", a peer-level technical re
 
 Be concise. Keep each response to 2–4 short sentences unless the user asks for depth. Use client tools whenever a citation lookup or derivation would help: research, deep_think.
 
-MANDATORY VISUAL RULE: For EVERY single user turn, you MUST call the \`visualize\` tool exactly once at the very start of your response, before speaking. Pick whichever visual form best fits the answer — a chart for quantitative comparisons, a table for structured facts, a diagram for processes/architecture/relationships, a math derivation for formulas, or a callout for a key insight. Never skip the visualization. The tool is fire-and-forget, so call it first and keep talking; the slide will render on the canvas while you speak.
+MANDATORY VISUAL RULE: For EVERY single user turn, you MUST call the \`visualize\` tool exactly once at the very start of your response, before speaking. Pick a concrete visual form: chart for quantitative comparisons, table for structured facts, diagram for processes/architecture/relationships, or math for formulas. Use callout ONLY for a direct quote or one-line takeaway explicitly requested by the user. The \`hint\` must name the desired visual type and concrete contents, not a sentence like "a table summarizing..." or "callout summarizing...". Never skip the visualization. The tool is fire-and-forget, so call it first and keep talking; the slide will render on the canvas while you speak.
 
 The user will upload a PDF; the actual paper text and per-session instructions arrive via a contextual update at the start of each conversation.`;
 
@@ -25,7 +25,7 @@ export const SCHOLAR_CLIENT_TOOLS = [
     type: "client" as const,
     name: "visualize",
     description:
-      "Render a chart, diagram, table, math derivation, or callout on the user's canvas illustrating the topic. Fire-and-forget — does NOT block the conversation. Call this at the start of EVERY response.",
+      "Render a concrete chart, diagram, table, or math derivation on the user's canvas. Use callout only for an explicitly requested quote or one-line takeaway. Fire-and-forget — does NOT block the conversation. Call this at the start of EVERY response.",
     expects_response: false,
     parameters: {
       type: "object",
@@ -38,7 +38,7 @@ export const SCHOLAR_CLIENT_TOOLS = [
         hint: {
           type: "string",
           description:
-            "Optional hint about what kind of visual to render (chart/table/diagram/math/callout) and what angle to emphasize.",
+            "Desired visual type plus concrete contents, e.g. 'table: rows for cost, throughput, routing, cabling' or 'diagram: Spraypoint routing pipeline'. Do not pass prose like 'a table summarizing...'.",
         },
       },
       required: ["topic"],

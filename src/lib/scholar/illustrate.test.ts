@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   containsHedgeLanguage,
+  createFallbackVisual,
   detectRequestedKind,
   generateVisual,
+  isPromptLikeVisualText,
   normalizeLoose,
   validateMermaid,
   validateVisual,
@@ -151,8 +153,8 @@ describe("generateVisual — callout and billing fallbacks", () => {
     );
 
     expect(generateTextImpl).toHaveBeenCalledTimes(1);
-    expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toBe("Attention sparsity tradeoff");
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.visual.diagram?.mermaid).toMatch(/^flowchart LR/);
     expect(result.warnings.join("\n")).not.toMatch(/Payment Required/);
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
@@ -168,8 +170,8 @@ describe("generateVisual — callout and billing fallbacks", () => {
     );
 
     expect(generateTextImpl).toHaveBeenCalledTimes(2);
-    expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toBe("show the architecture");
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.visual.diagram?.mermaid).toContain("Problem");
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
 });
@@ -209,6 +211,52 @@ describe("containsHedgeLanguage", () => {
     "BF16 splits into 1 sign, 8 exponent, 7 mantissa bits.",
   ])("does not flag concrete text: %s", (s) => {
     expect(containsHedgeLanguage(s)).toBe(false);
+  });
+});
+
+describe("prompt-like visual text guardrails", () => {
+  it.each([
+    "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput.",
+    "summarizing the core problem and solution presented in the paper.",
+    "Callout summarizing the contribution list.",
+  ])("flags prompt text rendered as a visual: %s", (s) => {
+    expect(isPromptLikeVisualText(s)).toBe(true);
+  });
+
+  it("does not treat a prompt-ish callout hint as an explicit callout request", () => {
+    expect(
+      detectRequestedKind({
+        topic: "RNG: Flat Datacenter Networks at Scale",
+        hint: "Callout summarizing the core problem and solution presented in the paper.",
+      }),
+    ).toBeNull();
+  });
+
+  it("builds a structured table fallback for the exact RNG vs Fat Tree regression", () => {
+    const visual = createFallbackVisual({
+      topic: "RNG vs. Fat Tree Performance Comparison",
+      hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+      pdfExcerpt: "RNG topologies are 9–45% cheaper than fat trees and offer higher throughput.",
+    });
+
+    expect(visual.kind).toBe("table");
+    expect(visual.table?.rows.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(visual.table)).toContain("9–45% lower");
+    expect(isPromptLikeVisualText(visual.narration)).toBe(false);
+    expect(validateVisual(visual)).toEqual({ ok: true });
+  });
+
+  it("builds a structured diagram fallback for the exact callout-summary regression", () => {
+    const visual = createFallbackVisual({
+      topic: "RNG: Flat Datacenter Networks at Scale",
+      hint: "Callout summarizing the core problem and solution presented in the paper.",
+      pdfExcerpt: "RNG uses Spraypoint and ShuffleBox to address routing and cabling challenges.",
+    });
+
+    expect(visual.kind).toBe("diagram");
+    expect(visual.diagram?.mermaid).toContain("Spraypoint");
+    expect(visual.diagram?.mermaid).toContain("ShuffleBox");
+    expect(validateVisual(visual)).toEqual({ ok: true });
   });
 });
 
@@ -286,15 +334,74 @@ describe("generateVisual — kind enforcement and hedge rejection (regression)",
   });
 
   it("does NOT short-circuit to a local callout when topic implies a structured kind and apiKey is missing", async () => {
-    // Without an API key we still cannot generate — but we must NOT pretend a
-    // math request was satisfied by a callout. The fallback callout body must
-    // reference the topic so the agent can see something failed.
     const result = await generateVisual(
       { topic: "Mathematical formalism of expander graphs", hint: "math equations" },
       { apiKey: "", maxAttempts: 1 },
     );
-    // Today we still fall back to a callout when generation is impossible, but
-    // the warnings must clearly state the requested kind was not delivered.
-    expect(result.warnings.join("\n")).toMatch(/unavailable|did not return/i);
+
+    expect(result.visual.kind).toBe("math");
+    expect(result.visual.math?.steps.join("\n")).toContain("h(G)");
+    expect(result.warnings.join("\n")).toMatch(/unavailable|rendered a local math/i);
+  });
+
+  it("rejects the exact table prompt regression and returns concrete table rows", async () => {
+    const promptEcho = {
+      title: "RNG vs. Fat Tree Performance Comparison",
+      narration:
+        "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+      kind: "callout",
+      callout: {
+        body: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+      },
+    };
+    const promptEchoAgain = {
+      ...promptEcho,
+      kind: "table",
+      table: { columns: ["Summary"], rows: [[promptEcho.narration]] },
+      callout: undefined,
+    };
+    const generateTextImpl = vi
+      .fn()
+      .mockResolvedValueOnce({ experimental_output: promptEcho })
+      .mockResolvedValueOnce({ experimental_output: promptEchoAgain });
+
+    const result = await generateVisual(
+      {
+        topic: "RNG vs. Fat Tree Performance Comparison",
+        hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+        pdfExcerpt: "RNG topologies are 9–45% cheaper than fat trees and offer higher throughput.",
+      },
+      { apiKey: "test-key", maxAttempts: 2, generateTextImpl },
+    );
+
+    expect(generateTextImpl).toHaveBeenCalledTimes(2);
+    expect(result.visual.kind).toBe("table");
+    expect(result.visual.table?.rows.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(result.visual.table)).toContain("Spraypoint");
+    expect(result.warnings.join("\n")).toMatch(/prompt-like visual text detected/);
+  });
+
+  it("does not accept a generated callout that only echoes a callout-summary hint", async () => {
+    const generateTextImpl = vi.fn().mockResolvedValue({
+      experimental_output: {
+        title: "RNG: Flat Datacenter Networks at Scale",
+        narration: "summarizing the core problem and solution presented in the paper.",
+        kind: "callout",
+        callout: { body: "summarizing the core problem and solution presented in the paper." },
+      },
+    });
+
+    const result = await generateVisual(
+      {
+        topic: "RNG: Flat Datacenter Networks at Scale",
+        hint: "Callout summarizing the core problem and solution presented in the paper.",
+        pdfExcerpt: "RNG uses Spraypoint and ShuffleBox to solve routing and cabling challenges.",
+      },
+      { apiKey: "test-key", maxAttempts: 1, generateTextImpl },
+    );
+
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.visual.diagram?.mermaid).toContain("Capacity stranded");
+    expect(isPromptLikeVisualText(result.visual.narration)).toBe(false);
   });
 });
