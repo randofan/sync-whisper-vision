@@ -148,7 +148,12 @@ interface IllustrateApiResponse {
 }
 
 export async function fetchIllustration(
-  payload: { topic: string; hint?: string; pdfExcerpt?: string },
+  payload: {
+    topic: string;
+    hint?: string;
+    pdfExcerpt?: string;
+    recentVisuals?: Array<{ title: string; kind: CanvasSpec["kind"] }>;
+  },
   fetchImpl: typeof fetch = fetch,
   opts: { attempts?: number; retryDelayMs?: number } = {},
 ) {
