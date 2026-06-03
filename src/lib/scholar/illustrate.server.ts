@@ -371,15 +371,15 @@ function createFallbackMathVisual(input: IllustrateInput): Visual {
       inline: expander ? "For a graph G=(V,E), every small node set should have a large outgoing cut." : undefined,
       steps: expander
         ? [
-            "G=(V,E),\\quad S\subset V,\\quad 0<|S|\le |V|/2",
-            "\\partial S = \{(u,v)\in E: u\in S,\ v\notin S\}",
-            "h(G)=\min_{0<|S|\le |V|/2}\frac{|\partial S|}{|S|}",
-            "\text{large }h(G)\Rightarrow\text{large cut bandwidth and capacity fungibility}",
+            "G=(V,E),\\quad S\\subset V,\\quad 0<|S|\\le |V|/2",
+            "\\partial S = \\{(u,v)\\in E: u\\in S,\\ v\\notin S\\}",
+            "h(G)=\\min_{0<|S|\\le |V|/2}\\frac{|\\partial S|}{|S|}",
+            "\\text{large }h(G)\\Rightarrow\\text{large cut bandwidth and capacity fungibility}",
           ]
         : [
-            "\text{objective}=\text{signal}-\text{cost}",
-            "\Delta=\text{method outcome}-\text{baseline outcome}",
-            "\text{gain}=\frac{\Delta}{\text{baseline outcome}}",
+            "\\text{objective}=\\text{signal}-\\text{cost}",
+            "\\Delta=\\text{method outcome}-\\text{baseline outcome}",
+            "\\text{gain}=\\frac{\\Delta}{\\text{baseline outcome}}",
           ],
     },
   };
