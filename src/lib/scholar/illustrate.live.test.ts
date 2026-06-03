@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { generateVisual, validateVisual } from "./illustrate.server";
 
-const apiKey = process.env.LOVABLE_API_KEY ?? "";
-const runIf = apiKey ? describe : describe.skip;
+const hasCloudflare = !!(process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID);
+const hasLovable = !!process.env.LOVABLE_API_KEY;
+const runIf = hasCloudflare || hasLovable ? describe : describe.skip;
 
 runIf("illustrate live generation", () => {
   it(
