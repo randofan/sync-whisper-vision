@@ -200,6 +200,7 @@ NO-HEDGE RULE (CRITICAL):
 
 QUALITY BAR:
 - Add information beyond restating the title. No slides whose body is just "A summary of X".
+- The topic/hint are instructions, not slide content; never render phrases like "A table comparing..." or "summarizing the..." as the visual body.
 - Plural topics enumerate the actual items with substance.
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
