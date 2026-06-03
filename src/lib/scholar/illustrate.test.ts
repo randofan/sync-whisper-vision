@@ -334,15 +334,74 @@ describe("generateVisual — kind enforcement and hedge rejection (regression)",
   });
 
   it("does NOT short-circuit to a local callout when topic implies a structured kind and apiKey is missing", async () => {
-    // Without an API key we still cannot generate — but we must NOT pretend a
-    // math request was satisfied by a callout. The fallback callout body must
-    // reference the topic so the agent can see something failed.
     const result = await generateVisual(
       { topic: "Mathematical formalism of expander graphs", hint: "math equations" },
       { apiKey: "", maxAttempts: 1 },
     );
-    // Today we still fall back to a callout when generation is impossible, but
-    // the warnings must clearly state the requested kind was not delivered.
-    expect(result.warnings.join("\n")).toMatch(/unavailable|did not return/i);
+
+    expect(result.visual.kind).toBe("math");
+    expect(result.visual.math?.steps.join("\n")).toContain("h(G)");
+    expect(result.warnings.join("\n")).toMatch(/unavailable|rendered a local math/i);
+  });
+
+  it("rejects the exact table prompt regression and returns concrete table rows", async () => {
+    const promptEcho = {
+      title: "RNG vs. Fat Tree Performance Comparison",
+      narration:
+        "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+      kind: "callout",
+      callout: {
+        body: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+      },
+    };
+    const promptEchoAgain = {
+      ...promptEcho,
+      kind: "table",
+      table: { columns: ["Summary"], rows: [[promptEcho.narration]] },
+      callout: undefined,
+    };
+    const generateTextImpl = vi
+      .fn()
+      .mockResolvedValueOnce({ experimental_output: promptEcho })
+      .mockResolvedValueOnce({ experimental_output: promptEchoAgain });
+
+    const result = await generateVisual(
+      {
+        topic: "RNG vs. Fat Tree Performance Comparison",
+        hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
+        pdfExcerpt: "RNG topologies are 9–45% cheaper than fat trees and offer higher throughput.",
+      },
+      { apiKey: "test-key", maxAttempts: 2, generateTextImpl },
+    );
+
+    expect(generateTextImpl).toHaveBeenCalledTimes(2);
+    expect(result.visual.kind).toBe("table");
+    expect(result.visual.table?.rows.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(result.visual.table)).toContain("Spraypoint");
+    expect(result.warnings.join("\n")).toMatch(/prompt-like visual text detected/);
+  });
+
+  it("does not accept a generated callout that only echoes a callout-summary hint", async () => {
+    const generateTextImpl = vi.fn().mockResolvedValue({
+      experimental_output: {
+        title: "RNG: Flat Datacenter Networks at Scale",
+        narration: "summarizing the core problem and solution presented in the paper.",
+        kind: "callout",
+        callout: { body: "summarizing the core problem and solution presented in the paper." },
+      },
+    });
+
+    const result = await generateVisual(
+      {
+        topic: "RNG: Flat Datacenter Networks at Scale",
+        hint: "Callout summarizing the core problem and solution presented in the paper.",
+        pdfExcerpt: "RNG uses Spraypoint and ShuffleBox to solve routing and cabling challenges.",
+      },
+      { apiKey: "test-key", maxAttempts: 1, generateTextImpl },
+    );
+
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.visual.diagram?.mermaid).toContain("Capacity stranded");
+    expect(isPromptLikeVisualText(result.visual.narration)).toBe(false);
   });
 });
