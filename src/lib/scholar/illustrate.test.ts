@@ -153,8 +153,8 @@ describe("generateVisual — callout and billing fallbacks", () => {
     );
 
     expect(generateTextImpl).toHaveBeenCalledTimes(1);
-    expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toBe("Attention sparsity tradeoff");
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.visual.diagram?.mermaid).toMatch(/^flowchart LR/);
     expect(result.warnings.join("\n")).not.toMatch(/Payment Required/);
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
@@ -170,8 +170,8 @@ describe("generateVisual — callout and billing fallbacks", () => {
     );
 
     expect(generateTextImpl).toHaveBeenCalledTimes(2);
-    expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toBe("show the architecture");
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.visual.diagram?.mermaid).toContain("Problem");
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
 });
