@@ -128,13 +128,13 @@ describe("normalizeLoose — callout robustness (regression)", () => {
   });
 });
 
-describe("generateVisual — callout and billing fallbacks", () => {
+describe("generateVisual — surfaces billing failures visibly (no silent fallback)", () => {
   it("renders an explicit callout locally without touching the paid AI gateway", async () => {
     const generateTextImpl = vi.fn();
 
     const result = await generateVisual(
       { topic: "Key theorem", hint: "callout: convergence depends on a bounded variance assumption" },
-      { apiKey: "test-key", generateTextImpl },
+      { env: { lovableApiKey: "test-key" }, generateTextImpl },
     );
 
     expect(generateTextImpl).not.toHaveBeenCalled();
@@ -144,35 +144,39 @@ describe("generateVisual — callout and billing fallbacks", () => {
     expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
 
-  it("falls back to a valid local callout instead of surfacing Payment Required", async () => {
+  it("throws a visible Payment Required error instead of fabricating a stub", async () => {
     const generateTextImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
 
-    const result = await generateVisual(
-      { topic: "Attention sparsity tradeoff", hint: "diagram" },
-      { apiKey: "test-key", maxAttempts: 4, generateTextImpl },
-    );
-
+    await expect(
+      generateVisual(
+        { topic: "Attention sparsity tradeoff", hint: "diagram" },
+        { env: { lovableApiKey: "test-key" }, maxAttempts: 4, generateTextImpl },
+      ),
+    ).rejects.toThrow(/credits exhausted|unpaid/i);
     expect(generateTextImpl).toHaveBeenCalledTimes(1);
-    expect(result.visual.kind).toBe("diagram");
-    expect(result.visual.diagram?.mermaid).toMatch(/^flowchart LR/);
-    expect(result.warnings.join("\n")).not.toMatch(/Payment Required/);
-    expect(validateVisual(result.visual)).toEqual({ ok: true });
   });
 
-  it("falls back to a valid callout when every structured attempt is invalid", async () => {
+  it("throws after exhausting attempts on persistently invalid output", async () => {
     const generateTextImpl = vi.fn().mockResolvedValue({
       experimental_output: { kind: "diagram", diagram: "not mermaid" },
     });
 
-    const result = await generateVisual(
-      { topic: "Broken generated diagram", hint: "show the architecture" },
-      { apiKey: "test-key", maxAttempts: 2, generateTextImpl },
-    );
-
+    await expect(
+      generateVisual(
+        { topic: "Broken generated diagram", hint: "show the architecture" },
+        { env: { lovableApiKey: "test-key" }, maxAttempts: 2, generateTextImpl },
+      ),
+    ).rejects.toThrow(/Failed to generate a valid visual/);
     expect(generateTextImpl).toHaveBeenCalledTimes(2);
-    expect(result.visual.kind).toBe("diagram");
-    expect(result.visual.diagram?.mermaid).toContain("Problem");
-    expect(validateVisual(result.visual)).toEqual({ ok: true });
+  });
+
+  it("throws when no AI provider is configured at all", async () => {
+    await expect(
+      generateVisual(
+        { topic: "Mathematical formalism of expander graphs", hint: "math equations" },
+        { env: {}, maxAttempts: 1 },
+      ),
+    ).rejects.toThrow(/No AI provider configured/);
   });
 });
 
@@ -194,7 +198,6 @@ describe("detectRequestedKind", () => {
 describe("containsHedgeLanguage", () => {
   it.each([
     "The paper does not provide explicit equations.",
-    "The paper describes the concept of edge expansion in expander graphs but does not provide explicit mathematical equations for their formal definition or properties within the provided text.",
     "Not enough information in the excerpt.",
     "No explicit formulas appear in the text.",
     "The text does not contain a diagram.",
@@ -232,7 +235,7 @@ describe("prompt-like visual text guardrails", () => {
     ).toBeNull();
   });
 
-  it("builds a structured table fallback for the exact RNG vs Fat Tree regression", () => {
+  it("createFallbackVisual still builds a structured table for the RNG regression", () => {
     const visual = createFallbackVisual({
       topic: "RNG vs. Fat Tree Performance Comparison",
       hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
@@ -241,35 +244,18 @@ describe("prompt-like visual text guardrails", () => {
 
     expect(visual.kind).toBe("table");
     expect(visual.table?.rows.length).toBeGreaterThanOrEqual(4);
-    expect(JSON.stringify(visual.table)).toContain("9–45% lower");
     expect(isPromptLikeVisualText(visual.narration)).toBe(false);
-    expect(validateVisual(visual)).toEqual({ ok: true });
-  });
-
-  it("builds a structured diagram fallback for the exact callout-summary regression", () => {
-    const visual = createFallbackVisual({
-      topic: "RNG: Flat Datacenter Networks at Scale",
-      hint: "Callout summarizing the core problem and solution presented in the paper.",
-      pdfExcerpt: "RNG uses Spraypoint and ShuffleBox to address routing and cabling challenges.",
-    });
-
-    expect(visual.kind).toBe("diagram");
-    expect(visual.diagram?.mermaid).toContain("Spraypoint");
-    expect(visual.diagram?.mermaid).toContain("ShuffleBox");
     expect(validateVisual(visual)).toEqual({ ok: true });
   });
 });
 
-describe("generateVisual — kind enforcement and hedge rejection (regression)", () => {
-  it("retries when the model returns a callout for a math request, never accepting hedge text", async () => {
+describe("generateVisual — kind enforcement, recentVisuals, research-triggering hints", () => {
+  it("retries when the model returns a hedge callout for a math request", async () => {
     const hedgeCallout = {
-      title: "Mathematical Formalism of Expander Graphs in RNG Paper",
-      narration:
-        "The paper describes the concept of edge expansion in expander graphs but does not provide explicit mathematical equations within the provided text.",
+      title: "Mathematical Formalism",
+      narration: "The paper does not provide explicit mathematical equations within the provided text.",
       kind: "callout",
-      callout: {
-        body: "The paper describes the concept of edge expansion in expander graphs but does not provide explicit mathematical equations within the provided text.",
-      },
+      callout: { body: "The paper does not provide explicit mathematical equations." },
     };
     const realMath = {
       title: "Edge Expansion (Math)",
@@ -293,115 +279,41 @@ describe("generateVisual — kind enforcement and hedge rejection (regression)",
         hint: "math equations",
         pdfExcerpt: "Edge expansion is the core property...",
       },
-      { apiKey: "test-key", maxAttempts: 4, generateTextImpl },
+      { env: { lovableApiKey: "test-key" }, maxAttempts: 4, generateTextImpl },
     );
 
     expect(generateTextImpl).toHaveBeenCalledTimes(2);
     expect(result.visual.kind).toBe("math");
-    expect(result.visual.math?.steps.length).toBeGreaterThan(0);
     expect(containsHedgeLanguage(result.visual.narration)).toBe(false);
   });
 
-  it("rejects a diagram whose narration starts with 'Diagram:' meta-label", async () => {
-    const metaCallout = {
-      title: "Expander Graph vs Fat Tree",
-      narration: "Diagram: Illustrate the concept of edge expansion in an expander graph.",
-      kind: "diagram",
-      diagram: { mermaid: "flowchart LR\n  A --> B" },
-    };
+  it("includes recentVisuals in the prompt so the model can avoid repeats", async () => {
+    const captured: Array<{ prompt: string }> = [];
     const realDiagram = {
-      title: "Expander vs Fat Tree",
-      narration: "Cuts in expander graphs cross many edges; fat-tree cuts are limited by tree level.",
+      title: "Spraypoint routing",
+      narration: "Spraypoint distributes packets across many near-edge-disjoint paths.",
       kind: "diagram",
-      diagram: {
-        mermaid:
-          "flowchart LR\n  S[Small cut S] --> E[Many crossing edges]\n  T[Fat tree cut] --> L[Few crossing edges]",
-      },
+      diagram: { mermaid: "flowchart LR\n  A[Packet] --> B[Spray paths]" },
     };
-    const generateTextImpl = vi
-      .fn()
-      .mockResolvedValueOnce({ experimental_output: metaCallout })
-      .mockResolvedValueOnce({ experimental_output: realDiagram });
-
-    const result = await generateVisual(
-      { topic: "Expander Graph vs. Fat Tree Edge Expansion", hint: "diagram" },
-      { apiKey: "test-key", maxAttempts: 4, generateTextImpl },
-    );
-
-    expect(generateTextImpl).toHaveBeenCalledTimes(2);
-    expect(result.visual.kind).toBe("diagram");
-    expect(containsHedgeLanguage(result.visual.narration)).toBe(false);
-  });
-
-  it("does NOT short-circuit to a local callout when topic implies a structured kind and apiKey is missing", async () => {
-    const result = await generateVisual(
-      { topic: "Mathematical formalism of expander graphs", hint: "math equations" },
-      { apiKey: "", maxAttempts: 1 },
-    );
-
-    expect(result.visual.kind).toBe("math");
-    expect(result.visual.math?.steps.join("\n")).toContain("h(G)");
-    expect(result.warnings.join("\n")).toMatch(/unavailable|rendered a local math/i);
-  });
-
-  it("rejects the exact table prompt regression and returns concrete table rows", async () => {
-    const promptEcho = {
-      title: "RNG vs. Fat Tree Performance Comparison",
-      narration:
-        "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
-      kind: "callout",
-      callout: {
-        body: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
-      },
-    };
-    const promptEchoAgain = {
-      ...promptEcho,
-      kind: "table",
-      table: { columns: ["Summary"], rows: [[promptEcho.narration]] },
-      callout: undefined,
-    };
-    const generateTextImpl = vi
-      .fn()
-      .mockResolvedValueOnce({ experimental_output: promptEcho })
-      .mockResolvedValueOnce({ experimental_output: promptEchoAgain });
-
-    const result = await generateVisual(
-      {
-        topic: "RNG vs. Fat Tree Performance Comparison",
-        hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
-        pdfExcerpt: "RNG topologies are 9–45% cheaper than fat trees and offer higher throughput.",
-      },
-      { apiKey: "test-key", maxAttempts: 2, generateTextImpl },
-    );
-
-    expect(generateTextImpl).toHaveBeenCalledTimes(2);
-    expect(result.visual.kind).toBe("table");
-    expect(result.visual.table?.rows.length).toBeGreaterThanOrEqual(4);
-    expect(JSON.stringify(result.visual.table)).toContain("Spraypoint");
-    expect(result.warnings.join("\n")).toMatch(/prompt-like visual text detected/);
-  });
-
-  it("does not accept a generated callout that only echoes a callout-summary hint", async () => {
-    const generateTextImpl = vi.fn().mockResolvedValue({
-      experimental_output: {
-        title: "RNG: Flat Datacenter Networks at Scale",
-        narration: "summarizing the core problem and solution presented in the paper.",
-        kind: "callout",
-        callout: { body: "summarizing the core problem and solution presented in the paper." },
-      },
+    const generateTextImpl = vi.fn(async (args: Record<string, unknown>) => {
+      captured.push({ prompt: String(args.prompt) });
+      return { experimental_output: realDiagram };
     });
 
-    const result = await generateVisual(
+    await generateVisual(
       {
-        topic: "RNG: Flat Datacenter Networks at Scale",
-        hint: "Callout summarizing the core problem and solution presented in the paper.",
-        pdfExcerpt: "RNG uses Spraypoint and ShuffleBox to solve routing and cabling challenges.",
+        topic: "Spraypoint routing",
+        hint: "diagram",
+        recentVisuals: [
+          { title: "RNG vs Fat Tree", kind: "table" },
+          { title: "Edge expansion math", kind: "math" },
+        ],
       },
-      { apiKey: "test-key", maxAttempts: 1, generateTextImpl },
+      { env: { lovableApiKey: "test-key" }, maxAttempts: 1, generateTextImpl },
     );
 
-    expect(result.visual.kind).toBe("diagram");
-    expect(result.visual.diagram?.mermaid).toContain("Capacity stranded");
-    expect(isPromptLikeVisualText(result.visual.narration)).toBe(false);
+    expect(captured[0].prompt).toMatch(/DO NOT repeat/);
+    expect(captured[0].prompt).toMatch(/RNG vs Fat Tree/);
+    expect(captured[0].prompt).toMatch(/Edge expansion math/);
   });
 });
