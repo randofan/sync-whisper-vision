@@ -221,6 +221,13 @@ export interface IllustrateInput {
   topic: string;
   hint?: string;
   pdfExcerpt?: string;
+  /**
+   * Titles + kinds of slides already on the canvas, newest first. We surface
+   * these to the model so it never repeats a slide back-to-back; one of the
+   * regressions we hit was the same RNG-vs-fat-tree table appearing on every
+   * slide because nothing in the loop checked prior visuals.
+   */
+  recentVisuals?: Array<{ title: string; kind: Visual["kind"] }>;
 }
 
 export interface IllustrateResult {
