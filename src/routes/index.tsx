@@ -23,6 +23,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const setPdf = useScholarStore((s) => s.setPdf);
+  const resetStore = useScholarStore((s) => s.reset);
 
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -35,6 +36,9 @@ function Index() {
     }
     setParsing(true);
     try {
+      // Clear any prior session state (transcript, canvas, research, prior PDF)
+      // so a freshly uploaded PDF starts with no leftover context.
+      resetStore();
       const { text, pages } = await extractPdfText(file, (p, t) =>
         setProgress(`Parsing page ${p}/${t}…`),
       );
