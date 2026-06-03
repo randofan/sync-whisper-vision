@@ -229,7 +229,7 @@ type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
   text?: string;
 }>;
 
-const EXPLICIT_CALLOUT_RE = /\b(quote|direct quote|one[- ]line takeaway|single[- ]sentence takeaway|key takeaway)\b/i;
+const EXPLICIT_CALLOUT_RE = /\b(quote|direct quote|definition sentence|definition|one[- ]line takeaway|single[- ]sentence takeaway|key takeaway)\b/i;
 const GENERIC_VISUAL_HINT_RE = /^(chart|line chart|bar chart|area chart|scatter|math|formula|diagram|table|callout)$/i;
 const HEDGE_RE = /\b(does not (provide|contain|include|describe|specify|mention)|not (enough|sufficient) (information|detail|context)|no (explicit|specific) (equations?|formulas?|diagrams?|details?|information)|the (paper|text|excerpt|document) (does not|doesn't|lacks)|insufficient (information|detail|context)|within the provided text|in the provided (text|excerpt))\b/i;
 const META_NARRATION_RE = /^\s*(diagram|chart|table|math|formula|equation|illustration|figure|visualization)\s*:/i;
