@@ -13,7 +13,7 @@ MANDATORY VISUAL RULE: For EVERY single user turn, you MUST call the \`visualize
 
 PAPER CONTENT:
 """
-${pdf.text.slice(0, 30_000)}
+${pdf.text.slice(0, 29_000)}
 """`;
 }
 
