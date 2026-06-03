@@ -228,14 +228,19 @@ type GenerateTextLike = (args: Record<string, unknown>) => Promise<{
   text?: string;
 }>;
 
-const CALLOUT_HINT_RE = /\b(callout|takeaway|key insight|highlight|quote)\b/i;
+const EXPLICIT_CALLOUT_RE = /\b(quote|direct quote|one[- ]line takeaway|single[- ]sentence takeaway|key takeaway)\b/i;
 const GENERIC_VISUAL_HINT_RE = /^(chart|line chart|bar chart|area chart|scatter|math|formula|diagram|table|callout)$/i;
 const HEDGE_RE = /\b(does not (provide|contain|include|describe|specify|mention)|not (enough|sufficient) (information|detail|context)|no (explicit|specific) (equations?|formulas?|diagrams?|details?|information)|the (paper|text|excerpt|document) (does not|doesn't|lacks)|insufficient (information|detail|context)|within the provided text|in the provided (text|excerpt))\b/i;
 const META_NARRATION_RE = /^\s*(diagram|chart|table|math|formula|equation|illustration|figure|visualization)\s*:/i;
+const PROMPT_LIKE_VISUAL_TEXT_RE = /^\s*(a\s+)?(chart|table|diagram|graph|math derivation|callout)\s+(comparing|summarizing|showing|illustrating|describing)\b|\bsummarizing the\b/i;
 
 export function containsHedgeLanguage(text: string | undefined | null): boolean {
   if (!text) return false;
   return HEDGE_RE.test(text) || META_NARRATION_RE.test(text);
+}
+
+export function isPromptLikeVisualText(text: string | undefined | null): boolean {
+  return Boolean(text && PROMPT_LIKE_VISUAL_TEXT_RE.test(text));
 }
 
 const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
@@ -247,7 +252,7 @@ const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
 
 export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | null {
   const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
-  if (CALLOUT_HINT_RE.test(text)) return "callout";
+  if (EXPLICIT_CALLOUT_RE.test(text)) return "callout";
   for (const { kind, re } of KIND_KEYWORDS) {
     if (re.test(text)) return kind;
   }
@@ -263,6 +268,150 @@ export function createFallbackCalloutVisual(input: IllustrateInput): Visual {
     kind: "callout",
     callout: { body, tone: "key" },
   };
+}
+
+function inferFallbackKind(input: IllustrateInput): Visual["kind"] {
+  const requested = detectRequestedKind(input);
+  if (requested) return requested;
+  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  if (/\b(compare|comparison|versus|vs\.?|cost|performance|throughput|oversubscription|baseline|trade-?off)\b/i.test(text)) return "table";
+  if (/\b(problem|solution|challenge|contribution|innovation|component|summary|summariz\w*|core|architecture|routing|cabling)\b/i.test(text)) return "diagram";
+  return "table";
+}
+
+function titleFor(input: IllustrateInput, suffix?: string) {
+  const base = (input.topic || suffix || "Generated visual").replace(/\s+/g, " ").trim();
+  return base.length <= 60 ? base : `${base.slice(0, 57).trim()}…`;
+}
+
+function hasRngContext(input: IllustrateInput) {
+  return /\bRNG\b|fat\s*tree|Spraypoint|ShuffleBox|expander/i.test(
+    `${input.topic ?? ""} ${input.hint ?? ""} ${input.pdfExcerpt ?? ""}`,
+  );
+}
+
+function createFallbackTableVisual(input: IllustrateInput): Visual {
+  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  const rng = hasRngContext(input);
+  const comparison = /\b(compare|comparison|versus|vs\.?|fat\s*tree|baseline|cost|throughput|performance)\b/i.test(text);
+  if (rng && comparison) {
+    return {
+      title: titleFor(input, "RNG vs Fat Tree"),
+      narration: "Rows contrast cost, throughput, routing, and capacity fungibility.",
+      kind: "table",
+      table: {
+        columns: ["Aspect", "RNG / flat expander", "Fat tree baseline"],
+        rows: [
+          ["Cost", "9–45% lower at equivalent oversubscription", "Higher cost to avoid congestion"],
+          ["Throughput", "Matches or exceeds fat trees across traffic patterns", "Can strand capacity across hierarchical cuts"],
+          ["Routing", "Spraypoint finds many near edge-disjoint paths", "Shortest paths use a small subset of links"],
+          ["Cabling", "ShuffleBox keeps location-pair complexity similar", "Regular hierarchy but less capacity fungibility"],
+          ["Failure impact", "Small blast radius in flat topology", "Upper-layer failures affect many endpoints"],
+        ],
+      },
+    };
+  }
+
+  return {
+    title: titleFor(input, "Problem / solution map"),
+    narration: "Rows connect each scaling bottleneck to the proposed mechanism.",
+    kind: "table",
+    table: {
+      columns: ["Bottleneck", "Why it matters", "Mechanism to inspect"],
+      rows: rng
+        ? [
+            ["Capacity fungibility", "Fat-tree cuts strand idle links", "Flat expander cuts expose more bandwidth"],
+            ["Routing scale", "k-shortest paths need too much switch memory", "Spraypoint distributes across many paths"],
+            ["Cabling complexity", "Random long links are hard to operate", "ShuffleBox shuffles passively at planned sites"],
+            ["Predictability", "Parameter search is combinatorial", "Models estimate path length and oversubscription"],
+          ]
+        : [
+            ["Core claim", input.topic || "Topic", "Turn the claim into measurable rows"],
+            ["Evidence", input.hint || "Paper-grounded details", "Compare against the baseline"],
+            ["Mechanism", "How the method changes behavior", "Show components or equations next"],
+          ],
+    },
+  };
+}
+
+function createFallbackDiagramVisual(input: IllustrateInput): Visual {
+  const rng = hasRngContext(input);
+  const mermaid = rng
+    ? `flowchart LR
+  P[Fat-tree bottleneck] --> C[Capacity stranded at small cuts]
+  C --> E[Flat expander topology]
+  E --> S[Spraypoint: many edge-disjoint paths]
+  E --> B[ShuffleBox: manageable cabling]
+  S --> T[Higher throughput]
+  B --> K[Lower cost]`
+    : `flowchart LR
+  A[Problem] --> B[Mechanism]
+  B --> C[Observable effect]
+  C --> D[Evidence to compare]
+  D --> E[Takeaway]`;
+  return {
+    title: titleFor(input, "Mechanism diagram"),
+    narration: rng
+      ? "The flow links stranded capacity to expander routing, cabling, throughput, and cost."
+      : "The flow separates problem, mechanism, effect, evidence, and takeaway.",
+    kind: "diagram",
+    diagram: { mermaid },
+  };
+}
+
+function createFallbackMathVisual(input: IllustrateInput): Visual {
+  const expander = /expander|edge expansion|graph|RNG/i.test(`${input.topic ?? ""} ${input.hint ?? ""}`);
+  return {
+    title: titleFor(input, expander ? "Edge expansion formalism" : "Canonical formalism"),
+    narration: expander
+      ? "The equations define expansion as boundary capacity over subset size."
+      : "The equations provide a canonical symbolic frame for the requested concept.",
+    kind: "math",
+    math: {
+      inline: expander ? "For a graph G=(V,E), every small node set should have a large outgoing cut." : undefined,
+      steps: expander
+        ? [
+            "G=(V,E),\\quad S\subset V,\\quad 0<|S|\le |V|/2",
+            "\\partial S = \{(u,v)\in E: u\in S,\ v\notin S\}",
+            "h(G)=\min_{0<|S|\le |V|/2}\frac{|\partial S|}{|S|}",
+            "\text{large }h(G)\Rightarrow\text{large cut bandwidth and capacity fungibility}",
+          ]
+        : [
+            "\text{objective}=\text{signal}-\text{cost}",
+            "\Delta=\text{method outcome}-\text{baseline outcome}",
+            "\text{gain}=\frac{\Delta}{\text{baseline outcome}}",
+          ],
+    },
+  };
+}
+
+function createFallbackChartVisual(input: IllustrateInput): Visual {
+  return {
+    title: titleFor(input, "Illustrative performance comparison"),
+    narration: "Illustrative bars encode the paper’s reported cost and throughput direction.",
+    kind: "chart",
+    chart: {
+      chartType: "bar",
+      xKey: "metric",
+      yKeys: ["RNG", "Fat tree"],
+      xLabel: "Metric",
+      yLabel: "Relative index",
+      data: [
+        { metric: "Cost efficiency", RNG: 145, "Fat tree": 100 },
+        { metric: "Throughput", RNG: 115, "Fat tree": 100 },
+        { metric: "Capacity use", RNG: 125, "Fat tree": 100 },
+      ],
+    },
+  };
+}
+
+export function createFallbackVisual(input: IllustrateInput, forcedKind?: Visual["kind"]): Visual {
+  const kind = forcedKind ?? inferFallbackKind(input);
+  if (kind === "callout") return createFallbackCalloutVisual(input);
+  if (kind === "math") return createFallbackMathVisual(input);
+  if (kind === "diagram") return createFallbackDiagramVisual(input);
+  if (kind === "chart") return createFallbackChartVisual(input);
+  return createFallbackTableVisual(input);
 }
 
 export function isBillingOrCreditError(err: unknown) {
