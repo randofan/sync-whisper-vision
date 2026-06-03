@@ -533,12 +533,13 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
             ? err.message
             : "unknown generation error";
       if (isBillingOrCreditError(err)) {
+        const fallback = createFallbackVisual(input);
         return {
-          visual: createFallbackCalloutVisual(input),
+          visual: fallback,
           attempts: attempt,
           warnings: [
             ...warnings,
-            `attempt ${attempt} (${modelId}): AI visual generation unavailable; rendered a local callout.`,
+            `attempt ${attempt} (${modelId}): AI visual generation unavailable; rendered a local ${fallback.kind}.`,
           ],
         };
       }
@@ -547,12 +548,13 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
     }
   }
 
+  const fallback = createFallbackVisual(input);
   return {
-    visual: createFallbackCalloutVisual(input),
+    visual: fallback,
     attempts: maxAttempts,
     warnings: [
       ...warnings,
-      `AI visual generation did not return a valid spec; rendered a local callout.${lastError ? ` Last error: ${lastError}` : ""}`,
+      `AI visual generation did not return a valid spec; rendered a local ${fallback.kind}.${lastError ? ` Last error: ${lastError}` : ""}`,
     ],
   };
 }
