@@ -216,10 +216,15 @@ export function buildClientTools(host: ToolHost) {
       void (async () => {
         try {
           const ctx = getPdfContext();
+          const recentVisuals = store()
+            .canvasItems.filter((c) => c.id !== id && c.status === "ready" && !!c.payload)
+            .slice(0, 6)
+            .map((c) => ({ title: c.title, kind: c.payload!.kind }));
           const json = await fetchIllustration({
             topic: params.topic,
             hint: params.hint,
             pdfExcerpt: ctx.text.slice(0, 30_000),
+            recentVisuals,
           });
           if (!json.visual) throw new Error(json.error ?? "no visual");
           const v = json.visual;
