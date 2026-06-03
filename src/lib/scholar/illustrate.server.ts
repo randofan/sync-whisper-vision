@@ -565,28 +565,17 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
             ? err.message
             : "unknown generation error";
       if (isBillingOrCreditError(err)) {
-        const fallback = createFallbackVisual(input);
-        return {
-          visual: fallback,
-          attempts: attempt,
-          warnings: [
-            ...warnings,
-            `attempt ${attempt} (${modelId}): AI visual generation unavailable; rendered a local ${fallback.kind}.`,
-          ],
-        };
+        // Surface visibly — silent stubs were hiding real outages.
+        throw new Error(
+          `${resolved.source === "cloudflare" ? "Cloudflare Workers AI" : "Lovable AI"} rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
+        );
       }
       lastError = msg;
       warnings.push(`attempt ${attempt} (${modelId}): ${msg}`);
     }
   }
 
-  const fallback = createFallbackVisual(input);
-  return {
-    visual: fallback,
-    attempts: maxAttempts,
-    warnings: [
-      ...warnings,
-      `AI visual generation did not return a valid spec; rendered a local ${fallback.kind}.${lastError ? ` Last error: ${lastError}` : ""}`,
-    ],
-  };
+  throw new Error(
+    `Failed to generate a valid visual after ${maxAttempts} attempts via ${resolved.source}. Last error: ${lastError || "unknown"}. Warnings: ${warnings.join(" | ")}`,
+  );
 }
