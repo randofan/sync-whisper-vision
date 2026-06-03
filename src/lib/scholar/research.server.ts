@@ -293,4 +293,3 @@ Investigate using the available tools, then return the JSON briefing.${correctio
     `Failed to generate a valid research briefing after ${maxAttempts} attempts via ${resolved.source}. Last error: ${lastError || "unknown"}. Warnings: ${warnings.join(" | ")}`,
   );
 }
-}
