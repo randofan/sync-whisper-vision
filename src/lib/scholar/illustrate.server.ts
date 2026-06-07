@@ -171,7 +171,8 @@ export function normalizeLoose(
       return { ok: true, visual: { ...base, math: spec } };
     }
     if (kind === "diagram") {
-      const spec = DiagramSpec.parse(coerce("diagram"));
+      const parsed = DiagramSpec.parse(coerce("diagram"));
+      const spec = { mermaid: sanitizeMermaid(parsed.mermaid) };
       return { ok: true, visual: { ...base, diagram: spec } };
     }
     if (kind === "table") {
@@ -229,6 +230,12 @@ export function validateMermaid(src: string): { ok: true } | { ok: false; reason
     if (o !== c) return { ok: false, reason: `unbalanced ${open}${close} in mermaid source (${o} vs ${c})` };
   }
   return { ok: true };
+}
+
+function sanitizeMermaid(src: string) {
+  return src
+    .replace(/\[([^\]\n]*?):\s*([^\]\n]*?)\]/g, "[$1 - $2]")
+    .replace(/\(\(([^)\n]*?):\s*([^)]*?)\)\)/g, "(($1 - $2))");
 }
 
 export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: string } {
