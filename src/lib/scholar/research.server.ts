@@ -152,6 +152,45 @@ function isBillingOrCreditError(err: unknown) {
   return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
 }
 
+/**
+ * Pull a JSON object out of a free-form assistant message. Cloudflare GLM
+ * sometimes wraps the JSON in ```json fences or prepends a short sentence, and
+ * occasionally drops the trailing brace when the response is near the token
+ * limit. Strip fences, walk to the first { / [, then find the matching close,
+ * with light repairs for trailing commas and stripped control characters.
+ */
+export function extractJsonFromText(raw: string): unknown {
+  if (!raw) return undefined;
+  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.search(/[\{\[]/);
+  if (start === -1) return undefined;
+  const openChar = cleaned[start];
+  const closeChar = openChar === "[" ? "]" : "}";
+  let end = cleaned.lastIndexOf(closeChar);
+  if (end < start) {
+    // Likely truncated — append the missing close so JSON.parse has a chance.
+    cleaned = cleaned + closeChar;
+    end = cleaned.length - 1;
+  }
+  let candidate = cleaned.substring(start, end + 1);
+  const attempts = [
+    candidate,
+    candidate.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]"),
+    candidate
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, " "),
+  ];
+  for (const text of attempts) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      // try next repair
+    }
+  }
+  return undefined;
+}
+
 export async function generateResearch(
   input: ResearchInput,
   opts: {
