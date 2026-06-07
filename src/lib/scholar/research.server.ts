@@ -232,28 +232,17 @@ ${input.pdfExcerpt ? `\nThe user is reading this paper (excerpt):\n${input.pdfEx
 Investigate using the available tools, then return the JSON briefing.${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } = await runGenerateText({
+      const { text } = await runGenerateText({
         model,
         tools,
         stopWhen: stepCountIs(maxSteps),
-        experimental_output: Output.object({ schema: LooseResearchSchema }),
         system: SYNTHESIS_SYSTEM,
         prompt,
       });
-      let loose: unknown = rawOut;
-      if (!loose && text) {
-        const match = text.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            loose = JSON.parse(match[0]);
-          } catch {
-            // fall through
-          }
-        }
-      }
+      const loose = extractJsonFromText(text ?? "");
       if (!loose) {
-        lastError = "model returned no parseable JSON briefing";
-        warnings.push(`attempt ${attempt} (${modelId}): ${lastError}`);
+        lastError = `model returned no parseable JSON briefing. Raw text: ${(text ?? "").slice(0, 400)}`;
+        warnings.push(`attempt ${attempt} (${modelId}): no parseable JSON`);
         continue;
       }
       const normalized = normalizeResearch(loose);
