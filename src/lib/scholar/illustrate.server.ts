@@ -59,7 +59,7 @@ const LooseVisualSchema = z.object({
   message: z.any().optional().nullable(),
   content: z.any().optional().nullable(),
   note: z.any().optional().nullable(),
-});
+}).passthrough();
 
 export const VisualSchema = z.object({
   title: z.string(),
@@ -86,9 +86,30 @@ export function normalizeLoose(
   const coerce = (
     field: "chart" | "math" | "diagram" | "table" | "callout",
   ): unknown => {
+    const record = raw as Record<string, unknown>;
+    const nestedCandidates = [record.spec, record.visual, record.diagramSpec, record.payload]
+      .filter((v): v is Record<string, unknown> => Boolean(v && typeof v === "object" && !Array.isArray(v)));
+    const firstString = (keys: string[]) => {
+      for (const key of keys) {
+        if (typeof record[key] === "string") return record[key];
+        for (const nested of nestedCandidates) {
+          if (typeof nested[key] === "string") return nested[key];
+        }
+      }
+      for (const value of Object.values(record)) {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          const obj = value as Record<string, unknown>;
+          for (const key of keys) if (typeof obj[key] === "string") return obj[key];
+        }
+      }
+      return undefined;
+    };
     const v = raw[field];
     if (v == null) {
-      if (field === "diagram" && typeof raw.mermaid === "string") return { mermaid: raw.mermaid };
+      if (field === "diagram") {
+        const mermaid = firstString(["mermaid", "mermaidDiagram", "mermaid_code", "diagramCode", "source", "code"]);
+        if (mermaid) return { mermaid };
+      }
       if (field === "table" && raw.columns && raw.rows) return { columns: raw.columns, rows: raw.rows };
       if (field === "chart" && raw.chartType && raw.xKey && raw.yKeys && raw.data) {
         return {
