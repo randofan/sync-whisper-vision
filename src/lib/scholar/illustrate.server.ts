@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CLOUDFLARE_MODELS,
   resolveAiProvider,
+  runCloudflareAiText,
   type AiProviderEnv,
   type ResolvedAiProvider,
 } from "@/lib/ai-gateway";
@@ -451,17 +452,14 @@ export async function generateVisual(
     return { visual: createFallbackCalloutVisual(input), attempts: 0, warnings: [] };
   }
 
+  const env = opts.env ?? {
+    cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+    cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
+  };
   let resolved: ResolvedAiProvider;
   try {
-    resolved =
-      opts.resolvedProvider ??
-      resolveAiProvider(
-        opts.env ?? {
-          cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
-          cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
-          lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
-        },
-      );
+    resolved = opts.resolvedProvider ?? resolveAiProvider(env);
   } catch (err) {
     // Surface the real reason — silently rendering a stub was hiding outages.
     throw err instanceof Error ? err : new Error(String(err));
@@ -472,7 +470,7 @@ export async function generateVisual(
 
   const models =
     resolved.source === "cloudflare"
-      ? [CLOUDFLARE_MODELS.primary, CLOUDFLARE_MODELS.secondary, CLOUDFLARE_MODELS.tertiary]
+      ? [CLOUDFLARE_MODELS.primary]
       : ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro"];
 
   const warnings: string[] = [];
@@ -495,12 +493,26 @@ export async function generateVisual(
 ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${recentBlock}${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } = await runGenerateText({
-        model,
-        experimental_output: Output.object({ schema: LooseVisualSchema }),
-        system: SYSTEM_PROMPT,
-        prompt,
-      });
+      const { experimental_output: rawOut, text } =
+        resolved.source === "cloudflare" && !opts.generateTextImpl && env.cloudflareApiToken && env.cloudflareAccountId
+          ? {
+              experimental_output: undefined,
+              text: await runCloudflareAiText({
+                apiToken: env.cloudflareApiToken,
+                accountId: env.cloudflareAccountId,
+                modelId,
+                system: SYSTEM_PROMPT,
+                prompt,
+                temperature: 0.1,
+                maxTokens: 4096,
+              }),
+            }
+          : await runGenerateText({
+              model,
+              experimental_output: Output.object({ schema: LooseVisualSchema }),
+              system: SYSTEM_PROMPT,
+              prompt,
+            });
       let loose: z.infer<typeof LooseVisualSchema> | undefined;
       const generated = LooseVisualSchema.safeParse(rawOut);
       if (generated.success) loose = generated.data;
