@@ -107,6 +107,7 @@ export function normalizeLoose(
     const v = raw[field];
     if (v == null) {
       if (field === "diagram") {
+        if (typeof record.spec === "string") return { mermaid: record.spec };
         const mermaid = firstString(["mermaid", "mermaidDiagram", "mermaid_code", "diagramCode", "source", "code"]);
         if (mermaid) return { mermaid };
       }
