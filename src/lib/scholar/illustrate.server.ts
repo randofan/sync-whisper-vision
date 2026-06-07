@@ -42,6 +42,23 @@ const LooseVisualSchema = z.object({
   diagram: z.any().optional().nullable(),
   table: z.any().optional().nullable(),
   callout: z.any().optional().nullable(),
+  mermaid: z.any().optional().nullable(),
+  columns: z.any().optional().nullable(),
+  rows: z.any().optional().nullable(),
+  chartType: z.any().optional().nullable(),
+  xKey: z.any().optional().nullable(),
+  yKeys: z.any().optional().nullable(),
+  data: z.any().optional().nullable(),
+  xLabel: z.any().optional().nullable(),
+  yLabel: z.any().optional().nullable(),
+  steps: z.any().optional().nullable(),
+  inline: z.any().optional().nullable(),
+  body: z.any().optional().nullable(),
+  tone: z.any().optional().nullable(),
+  text: z.any().optional().nullable(),
+  message: z.any().optional().nullable(),
+  content: z.any().optional().nullable(),
+  note: z.any().optional().nullable(),
 });
 
 export const VisualSchema = z.object({
@@ -70,7 +87,26 @@ export function normalizeLoose(
     field: "chart" | "math" | "diagram" | "table" | "callout",
   ): unknown => {
     const v = raw[field];
-    if (v == null) return undefined;
+    if (v == null) {
+      if (field === "diagram" && typeof raw.mermaid === "string") return { mermaid: raw.mermaid };
+      if (field === "table" && raw.columns && raw.rows) return { columns: raw.columns, rows: raw.rows };
+      if (field === "chart" && raw.chartType && raw.xKey && raw.yKeys && raw.data) {
+        return {
+          chartType: raw.chartType,
+          xKey: raw.xKey,
+          yKeys: raw.yKeys,
+          data: raw.data,
+          xLabel: raw.xLabel ?? undefined,
+          yLabel: raw.yLabel ?? undefined,
+        };
+      }
+      if (field === "math" && raw.steps) return { steps: raw.steps, inline: raw.inline ?? undefined };
+      if (field === "callout") {
+        const body = raw.body ?? raw.text ?? raw.message ?? raw.content ?? raw.note;
+        if (typeof body === "string") return { body, tone: raw.tone ?? undefined };
+      }
+      return undefined;
+    }
     if (field === "diagram" && typeof v === "string") return { mermaid: v };
     if (field === "callout" && typeof v === "string") return { body: v };
     if (field === "math" && Array.isArray(v)) return { steps: v as string[] };
