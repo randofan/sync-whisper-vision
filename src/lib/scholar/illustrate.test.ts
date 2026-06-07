@@ -53,6 +53,24 @@ describe("validateVisual", () => {
     };
     expect(validateVisual(v)).toEqual({ ok: true });
   });
+
+  it("normalizes Cloudflare GLM top-level spec into diagram.mermaid", () => {
+    const res = normalizeLoose(
+      {
+        title: "BF16 pipeline",
+        narration: "The flow splits and reconstructs BF16 fields.",
+        kind: "diagram",
+        spec: "flowchart LR\n  A[Sign: 1 bit] --> B[Reconstruct]",
+      } as never,
+      { title: "fallback", narration: "fallback" },
+    );
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.visual.diagram?.mermaid).toContain("Sign - 1 bit");
+      expect(validateVisual(res.visual)).toEqual({ ok: true });
+    }
+  });
 });
 
 describe("normalizeLoose — callout robustness (regression)", () => {
