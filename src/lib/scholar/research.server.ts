@@ -183,7 +183,7 @@ export async function generateResearch(
 
   const models =
     resolved.source === "cloudflare"
-      ? [CLOUDFLARE_MODELS.primary, CLOUDFLARE_MODELS.secondary, CLOUDFLARE_MODELS.tertiary]
+      ? [CLOUDFLARE_MODELS.primary]
       : ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-3-flash-preview"];
 
   const warnings: string[] = [];

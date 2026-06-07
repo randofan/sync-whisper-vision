@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CLOUDFLARE_MODELS,
   resolveAiProvider,
+  runCloudflareAiText,
   type AiProviderEnv,
   type ResolvedAiProvider,
 } from "@/lib/ai-gateway";
@@ -41,7 +42,24 @@ const LooseVisualSchema = z.object({
   diagram: z.any().optional().nullable(),
   table: z.any().optional().nullable(),
   callout: z.any().optional().nullable(),
-});
+  mermaid: z.any().optional().nullable(),
+  columns: z.any().optional().nullable(),
+  rows: z.any().optional().nullable(),
+  chartType: z.any().optional().nullable(),
+  xKey: z.any().optional().nullable(),
+  yKeys: z.any().optional().nullable(),
+  data: z.any().optional().nullable(),
+  xLabel: z.any().optional().nullable(),
+  yLabel: z.any().optional().nullable(),
+  steps: z.any().optional().nullable(),
+  inline: z.any().optional().nullable(),
+  body: z.any().optional().nullable(),
+  tone: z.any().optional().nullable(),
+  text: z.any().optional().nullable(),
+  message: z.any().optional().nullable(),
+  content: z.any().optional().nullable(),
+  note: z.any().optional().nullable(),
+}).passthrough();
 
 export const VisualSchema = z.object({
   title: z.string(),
@@ -68,8 +86,49 @@ export function normalizeLoose(
   const coerce = (
     field: "chart" | "math" | "diagram" | "table" | "callout",
   ): unknown => {
+    const record = raw as Record<string, unknown>;
+    const nestedCandidates = [record.spec, record.visual, record.diagramSpec, record.payload]
+      .filter((v): v is Record<string, unknown> => Boolean(v && typeof v === "object" && !Array.isArray(v)));
+    const firstString = (keys: string[]) => {
+      for (const key of keys) {
+        if (typeof record[key] === "string") return record[key];
+        for (const nested of nestedCandidates) {
+          if (typeof nested[key] === "string") return nested[key];
+        }
+      }
+      for (const value of Object.values(record)) {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          const obj = value as Record<string, unknown>;
+          for (const key of keys) if (typeof obj[key] === "string") return obj[key];
+        }
+      }
+      return undefined;
+    };
     const v = raw[field];
-    if (v == null) return undefined;
+    if (v == null) {
+      if (field === "diagram") {
+        if (typeof record.spec === "string") return { mermaid: record.spec };
+        const mermaid = firstString(["mermaid", "mermaidDiagram", "mermaid_code", "diagramCode", "source", "code"]);
+        if (mermaid) return { mermaid };
+      }
+      if (field === "table" && raw.columns && raw.rows) return { columns: raw.columns, rows: raw.rows };
+      if (field === "chart" && raw.chartType && raw.xKey && raw.yKeys && raw.data) {
+        return {
+          chartType: raw.chartType,
+          xKey: raw.xKey,
+          yKeys: raw.yKeys,
+          data: raw.data,
+          xLabel: raw.xLabel ?? undefined,
+          yLabel: raw.yLabel ?? undefined,
+        };
+      }
+      if (field === "math" && raw.steps) return { steps: raw.steps, inline: raw.inline ?? undefined };
+      if (field === "callout") {
+        const body = raw.body ?? raw.text ?? raw.message ?? raw.content ?? raw.note;
+        if (typeof body === "string") return { body, tone: raw.tone ?? undefined };
+      }
+      return undefined;
+    }
     if (field === "diagram" && typeof v === "string") return { mermaid: v };
     if (field === "callout" && typeof v === "string") return { body: v };
     if (field === "math" && Array.isArray(v)) return { steps: v as string[] };
@@ -112,7 +171,8 @@ export function normalizeLoose(
       return { ok: true, visual: { ...base, math: spec } };
     }
     if (kind === "diagram") {
-      const spec = DiagramSpec.parse(coerce("diagram"));
+      const parsed = DiagramSpec.parse(coerce("diagram"));
+      const spec = { mermaid: sanitizeMermaid(parsed.mermaid) };
       return { ok: true, visual: { ...base, diagram: spec } };
     }
     if (kind === "table") {
@@ -170,6 +230,12 @@ export function validateMermaid(src: string): { ok: true } | { ok: false; reason
     if (o !== c) return { ok: false, reason: `unbalanced ${open}${close} in mermaid source (${o} vs ${c})` };
   }
   return { ok: true };
+}
+
+function sanitizeMermaid(src: string) {
+  return src
+    .replace(/\[([^\]\n]*?):\s*([^\]\n]*?)\]/g, "[$1 - $2]")
+    .replace(/\(\(([^)\n]*?):\s*([^)]*?)\)\)/g, "(($1 - $2))");
 }
 
 export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: string } {
@@ -451,17 +517,14 @@ export async function generateVisual(
     return { visual: createFallbackCalloutVisual(input), attempts: 0, warnings: [] };
   }
 
+  const env = opts.env ?? {
+    cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
+    cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
+  };
   let resolved: ResolvedAiProvider;
   try {
-    resolved =
-      opts.resolvedProvider ??
-      resolveAiProvider(
-        opts.env ?? {
-          cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
-          cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
-          lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
-        },
-      );
+    resolved = opts.resolvedProvider ?? resolveAiProvider(env);
   } catch (err) {
     // Surface the real reason — silently rendering a stub was hiding outages.
     throw err instanceof Error ? err : new Error(String(err));
@@ -472,7 +535,7 @@ export async function generateVisual(
 
   const models =
     resolved.source === "cloudflare"
-      ? [CLOUDFLARE_MODELS.primary, CLOUDFLARE_MODELS.secondary, CLOUDFLARE_MODELS.tertiary]
+      ? [CLOUDFLARE_MODELS.primary]
       : ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro"];
 
   const warnings: string[] = [];
@@ -495,12 +558,26 @@ export async function generateVisual(
 ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${recentBlock}${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } = await runGenerateText({
-        model,
-        experimental_output: Output.object({ schema: LooseVisualSchema }),
-        system: SYSTEM_PROMPT,
-        prompt,
-      });
+      const { experimental_output: rawOut, text } =
+        resolved.source === "cloudflare" && !opts.generateTextImpl && env.cloudflareApiToken && env.cloudflareAccountId
+          ? {
+              experimental_output: undefined,
+              text: await runCloudflareAiText({
+                apiToken: env.cloudflareApiToken,
+                accountId: env.cloudflareAccountId,
+                modelId,
+                system: SYSTEM_PROMPT,
+                prompt,
+                temperature: 0.1,
+                maxTokens: 4096,
+              }),
+            }
+          : await runGenerateText({
+              model,
+              experimental_output: Output.object({ schema: LooseVisualSchema }),
+              system: SYSTEM_PROMPT,
+              prompt,
+            });
       let loose: z.infer<typeof LooseVisualSchema> | undefined;
       const generated = LooseVisualSchema.safeParse(rawOut);
       if (generated.success) loose = generated.data;

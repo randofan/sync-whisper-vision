@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   containsHedgeLanguage,
   createFallbackVisual,
@@ -10,6 +10,10 @@ import {
   validateVisual,
   type Visual,
 } from "./illustrate.server";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("validateMermaid", () => {
   it("accepts a well-formed flowchart", () => {
@@ -48,6 +52,24 @@ describe("validateVisual", () => {
       diagram: { mermaid: "flowchart LR\n  A --> B" },
     };
     expect(validateVisual(v)).toEqual({ ok: true });
+  });
+
+  it("normalizes Cloudflare GLM top-level spec into diagram.mermaid", () => {
+    const res = normalizeLoose(
+      {
+        title: "BF16 pipeline",
+        narration: "The flow splits and reconstructs BF16 fields.",
+        kind: "diagram",
+        spec: "flowchart LR\n  A[Sign: 1 bit] --> B[Reconstruct]",
+      } as never,
+      { title: "fallback", narration: "fallback" },
+    );
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.visual.diagram?.mermaid).toContain("Sign - 1 bit");
+      expect(validateVisual(res.visual)).toEqual({ ok: true });
+    }
   });
 });
 
@@ -250,6 +272,48 @@ describe("prompt-like visual text guardrails", () => {
 });
 
 describe("generateVisual — kind enforcement, recentVisuals, research-triggering hints", () => {
+  it("uses Cloudflare's native GLM run endpoint and never falls through to deprecated fallback models", async () => {
+    const validDiagram = {
+      title: "RNG topology",
+      narration: "The graph contrasts hierarchical fat-tree links with flat expander connectivity.",
+      kind: "diagram",
+      diagram: { mermaid: "flowchart LR\n  A[Fat tree] --> B[Core]\n  C[Expander] --> D[Many cuts]" },
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          result: { choices: [{ message: { content: "not json" } }] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          result: { choices: [{ message: { content: JSON.stringify(validDiagram) } }] },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchImpl);
+
+    const result = await generateVisual(
+      { topic: "RNG expander graph topology", hint: "diagram" },
+      {
+        env: { cloudflareApiToken: "cf-token", cloudflareAccountId: "acct" },
+        maxAttempts: 2,
+      },
+    );
+
+    expect(result.visual.kind).toBe("diagram");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [url, init] of fetchImpl.mock.calls) {
+      expect(String(url)).toContain("/ai/run/@cf/zai-org/glm-4.7-flash");
+      expect(String(url)).not.toContain("/ai/v1");
+      expect(String(url)).not.toMatch(/llama|hermes/i);
+      const body = JSON.parse(String((init as RequestInit).body));
+      expect(body.response_format).toEqual({ type: "json_object" });
+    }
+  });
+
   it("retries when the model returns a hedge callout for a math request", async () => {
     const hedgeCallout = {
       title: "Mathematical Formalism",
