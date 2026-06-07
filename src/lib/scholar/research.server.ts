@@ -1,10 +1,4 @@
-import {
-  generateText,
-  Output,
-  NoObjectGeneratedError,
-  stepCountIs,
-  tool,
-} from "ai";
+import { generateText, NoObjectGeneratedError, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import {
   CLOUDFLARE_MODELS,
@@ -112,13 +106,15 @@ const SYNTHESIS_SYSTEM = `You are a deep-research librarian feeding factual grou
 Workflow:
 1. Use the "arxiv_search" tool 1-3 times with different focused query phrasings to find relevant primary literature.
 2. Use the "fetch_url" tool 1-3 times to read promising abstracts or referenced pages in depth.
-3. After gathering evidence, produce the final JSON briefing.
+3. After gathering evidence, produce the final JSON briefing as your last assistant message.
 
 Final output rules (strict):
-- "summary": 4-8 dense sentences synthesizing what you actually verified from the tools. Mention concrete techniques, prior work names, numbers, or definitions. NO URLs, NO markdown link syntax, NO citation markers like [1] or (Smith 2024). The voice agent will speak this aloud.
+- Your FINAL assistant message MUST be a single JSON object and NOTHING ELSE — no prose before or after, no markdown fences. Shape:
+  {"summary": "<4-8 dense sentences>", "keyPoints": ["bullet", "bullet", ...]}
+- "summary" is REQUIRED and non-empty: 4-8 dense sentences synthesizing what you actually verified from the tools. Mention concrete techniques, prior work names, numbers, or definitions. NO URLs, NO markdown link syntax, NO citation markers like [1] or (Smith 2024). The voice agent will speak this aloud.
 - "keyPoints": 3-7 short factual bullets, same constraints (no URLs, no link syntax).
 - Do not output citations or bibliography — the voice agent doesn't need them. The briefing must read as confident grounded knowledge.
-- If your tool calls returned nothing useful, still produce a best-effort grounded summary from your training knowledge and say so honestly.`;
+- If your tool calls returned nothing useful, STILL produce a best-effort grounded summary from your training knowledge. Never return an empty summary.`;
 
 export interface ResearchInput {
   query: string;
@@ -154,6 +150,45 @@ export function createFallbackResearch(input: ResearchInput): ResearchResult {
 function isBillingOrCreditError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
   return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
+}
+
+/**
+ * Pull a JSON object out of a free-form assistant message. Cloudflare GLM
+ * sometimes wraps the JSON in ```json fences or prepends a short sentence, and
+ * occasionally drops the trailing brace when the response is near the token
+ * limit. Strip fences, walk to the first { / [, then find the matching close,
+ * with light repairs for trailing commas and stripped control characters.
+ */
+export function extractJsonFromText(raw: string): unknown {
+  if (!raw) return undefined;
+  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.search(/[\{\[]/);
+  if (start === -1) return undefined;
+  const openChar = cleaned[start];
+  const closeChar = openChar === "[" ? "]" : "}";
+  let end = cleaned.lastIndexOf(closeChar);
+  if (end < start) {
+    // Likely truncated — append the missing close so JSON.parse has a chance.
+    cleaned = cleaned + closeChar;
+    end = cleaned.length - 1;
+  }
+  let candidate = cleaned.substring(start, end + 1);
+  const attempts = [
+    candidate,
+    candidate.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]"),
+    candidate
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, " "),
+  ];
+  for (const text of attempts) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      // try next repair
+    }
+  }
+  return undefined;
 }
 
 export async function generateResearch(
@@ -236,28 +271,17 @@ ${input.pdfExcerpt ? `\nThe user is reading this paper (excerpt):\n${input.pdfEx
 Investigate using the available tools, then return the JSON briefing.${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } = await runGenerateText({
+      const { text } = await runGenerateText({
         model,
         tools,
         stopWhen: stepCountIs(maxSteps),
-        experimental_output: Output.object({ schema: LooseResearchSchema }),
         system: SYNTHESIS_SYSTEM,
         prompt,
       });
-      let loose: unknown = rawOut;
-      if (!loose && text) {
-        const match = text.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            loose = JSON.parse(match[0]);
-          } catch {
-            // fall through
-          }
-        }
-      }
+      const loose = extractJsonFromText(text ?? "");
       if (!loose) {
-        lastError = "model returned no parseable JSON briefing";
-        warnings.push(`attempt ${attempt} (${modelId}): ${lastError}`);
+        lastError = `model returned no parseable JSON briefing. Raw text: ${(text ?? "").slice(0, 400)}`;
+        warnings.push(`attempt ${attempt} (${modelId}): no parseable JSON`);
         continue;
       }
       const normalized = normalizeResearch(loose);
