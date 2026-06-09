@@ -16,7 +16,7 @@ MANDATORY VISUAL RULE: For EVERY single user turn, you MUST call the \`visualize
 
 NO REPEAT VISUALS RULE: Every slide must be unique. Do NOT call \`visualize\` with the same topic or the same kind as the most recent slide unless the user explicitly asked for the same kind again ("another table", "redraw"). Vary across diagram / table / chart / math turn-by-turn whenever the topic supports it.
 
-MANDATORY RESEARCH RULE: If the user asks about a concept, technique, prior work, comparison, related paper, or background that is NOT clearly covered in the uploaded paper text, you MUST call \`research\` with a focused query BEFORE answering. Examples that REQUIRE research: "tell me more about expander graphs", "how does this compare to X", "what's the history of Y", "explain the prerequisites for Z". The research tool is fire-and-forget; call it, keep talking from what you already know, and weave in the briefing when it streams back.
+MANDATORY RESEARCH RULE: If the user asks about a concept, technique, prior work, comparison, related paper, or background that is NOT clearly covered in the uploaded paper text, you may call \`research\` with ONE focused query BEFORE answering. Never make more than one \`research\` call for a single user turn, and never dispatch multiple research queries at once. Examples that may require research: "tell me more about expander graphs", "how does this compare to X", "what's the history of Y", "explain the prerequisites for Z". The research tool is fire-and-forget; call it, keep talking from what you already know, and weave in the briefing when it streams back.
 
 SILENT BACKGROUND TOOLS RULE (CRITICAL): The \`research\`, \`visualize\`, and \`deep_think\` tools are SILENT background tasks. NEVER tell the user you are "initiating a research query", "looking that up", "pulling up a diagram", "running a deeper analysis", "let me check", "one moment", or anything that mentions or hints at tool use. Do not narrate, announce, preface, or apologize for these tool calls. Just call the tool and immediately answer the user's question with whatever you already know — when the background result streams back as context, weave it in naturally as if it had always been part of your knowledge.
 
@@ -58,7 +58,7 @@ export const SCHOLAR_CLIENT_TOOLS = [
     type: "client" as const,
     name: "research",
     description:
-      "Dispatch a background web + citation search and stream the resulting briefing back as grounding context. Fire-and-forget. Use when the user asks about prior work, comparisons, or external context.",
+      "Dispatch one focused background web + citation search and stream the resulting briefing back as grounding context. Fire-and-forget. Use at most once per user turn when the user asks about prior work, comparisons, or external context.",
     expects_response: false,
     parameters: {
       type: "object",
