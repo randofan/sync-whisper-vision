@@ -206,8 +206,7 @@ export async function generateResearch(
     opts.resolvedProvider ??
     resolveAiProvider(
       opts.env ?? {
-        cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
-        cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+        groqApiKey: process.env.GROQ_API_KEY,
         lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
       },
     );
@@ -217,8 +216,8 @@ export async function generateResearch(
   const runGenerateText = (opts.generateTextImpl ?? generateText) as GenerateTextLike;
 
   const models =
-    resolved.source === "cloudflare"
-      ? [CLOUDFLARE_MODELS.primary]
+    resolved.source === "groq"
+      ? [GROQ_MODELS.reasoning]
       : ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-3-flash-preview"];
 
   const warnings: string[] = [];
