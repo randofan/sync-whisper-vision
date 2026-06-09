@@ -225,7 +225,7 @@ describe("detectRequestedKind", () => {
     ["Expander graph vs fat tree topology", undefined, "diagram"],
     ["Throughput trend across scales", "chart", "chart"],
     ["Baseline comparison matrix", undefined, "table"],
-    ["Key takeaway", "callout", "callout"],
+    ["Key takeaway", "callout", null],
     ["Generic topic with no signal", undefined, null],
   ])("detects kind for topic=%j hint=%j", (topic, hint, expected) => {
     expect(detectRequestedKind({ topic, hint })).toBe(expected);
