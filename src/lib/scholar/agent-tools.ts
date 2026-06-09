@@ -128,7 +128,7 @@ export async function fetchResearchBriefing(
     payload,
     "Research service",
     fetchImpl,
-    opts,
+    { attempts: 1, ...opts },
   );
 }
 
@@ -280,7 +280,7 @@ export function buildClientTools(host: ToolHost) {
             query: params.query,
             pdfExcerpt: ctx.text.slice(0, 12_000),
             scope: params.scope,
-          });
+          }, fetch, { attempts: 1 });
           store().patchResearch(id, {
             status: "ready",
             summary: json.summary,
