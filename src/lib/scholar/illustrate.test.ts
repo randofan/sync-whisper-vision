@@ -287,36 +287,42 @@ describe("prompt-like visual text guardrails", () => {
 });
 
 describe("generateVisual — kind enforcement, recentVisuals, research-triggering hints", () => {
-  it("uses Groq's OpenAI-compatible endpoint with the fast llama model and no cross-model fallback", async () => {
-    const validDiagram = {
-      title: "RNG topology",
-      narration: "The graph contrasts hierarchical fat-tree links with flat expander connectivity.",
-      kind: "diagram",
-      diagram: { mermaid: "flowchart LR\n  A[Fat tree] --> B[Core]\n  C[Expander] --> D[Many cuts]" },
-    };
-    const capturedModels: string[] = [];
-    const generateTextImpl = vi
-      .fn(async (args: Record<string, unknown>) => {
-        const model = args.model as { modelId?: string };
-        capturedModels.push(model?.modelId ?? "");
-        return { experimental_output: validDiagram };
-      });
+  it("uses Groq's strict structured-output endpoint with openai/gpt-oss-20b in a single call", async () => {
+    const capturedRequests: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      capturedRequests.push({ url, body: JSON.parse(String(init?.body ?? "{}")) });
+      const payload = {
+        title: "RNG topology",
+        narration: "The graph contrasts hierarchical fat-tree links with flat expander connectivity.",
+        mermaid: "flowchart LR\n  A[Fat tree] --> B[Core]\n  C[Expander] --> D[Many cuts]",
+      };
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: JSON.stringify(payload) } }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
 
     const result = await generateVisual(
       { topic: "RNG expander graph topology", hint: "diagram" },
       {
         env: { groqApiKey: "groq-token" },
         maxAttempts: 2,
-        generateTextImpl,
+        fetchImpl,
       },
     );
 
     expect(result.visual.kind).toBe("diagram");
-    expect(generateTextImpl).toHaveBeenCalledTimes(1);
-    for (const m of capturedModels) {
-      expect(m).toBe("llama-3.1-8b-instant");
-      expect(m).not.toMatch(/cloudflare|cf\/|hermes|gemini/i);
-    }
+    expect(result.attempts).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(capturedRequests[0].url).toBe("https://api.groq.com/openai/v1/chat/completions");
+    const body = capturedRequests[0].body as {
+      model: string;
+      response_format: { type: string; json_schema: { strict: boolean; schema: { additionalProperties: boolean } } };
+    };
+    expect(body.model).toBe("openai/gpt-oss-20b");
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.strict).toBe(true);
+    expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
   });
 
 
