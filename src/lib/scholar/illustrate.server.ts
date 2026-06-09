@@ -811,6 +811,7 @@ export async function generateVisual(
     resolvedProvider?: ResolvedAiProvider;
     maxAttempts?: number;
     generateTextImpl?: GenerateTextLike;
+    fetchImpl?: FetchLike;
   } = {},
 ): Promise<IllustrateResult> {
 
