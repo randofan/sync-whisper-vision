@@ -501,10 +501,6 @@ export function isBillingOrCreditError(err: unknown) {
   return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
 }
 
-function shouldRenderLocalCallout(input: IllustrateInput) {
-  return detectRequestedKind(input) === "callout";
-}
-
 export async function generateVisual(
   input: IllustrateInput,
   opts: {
@@ -515,9 +511,6 @@ export async function generateVisual(
     generateTextImpl?: GenerateTextLike;
   } = {},
 ): Promise<IllustrateResult> {
-  if (shouldRenderLocalCallout(input)) {
-    return { visual: createFallbackCalloutVisual(input), attempts: 0, warnings: [] };
-  }
 
   const env = opts.env ?? {
     cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
