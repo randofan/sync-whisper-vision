@@ -255,7 +255,7 @@ KIND SELECTION (pick the first that fits, UNLESS the topic/hint explicitly reque
 2. "table" — comparisons, parameters, ablations, datasets, baselines. Prefer 3-6 columns and 3-8 rows of substantive content.
 3. "chart" — quantitative trends/comparisons. Include 8-15 realistic illustrative data points; mark them illustrative in the narration if inferred.
 4. "math" — formulas, losses, derivations, complexity, mathematical definitions. Each step is a KaTeX string (no $ delimiters).
-5. "callout" — FORBIDDEN unless the user explicitly asked for a quote, definition sentence, or one-line takeaway.
+5. "callout" — FORBIDDEN. Never return kind="callout". Slides must always contain a real visual asset (diagram, chart, table, or equations). If the topic only suggests a quote or one-line takeaway, promote it to a diagram (mindmap or flowchart) or table that decomposes the idea into concrete parts.
 
 REQUESTED-KIND RULE (CRITICAL):
 - Topic/hint mentions "math", "equation", "formula", "formalism", "derivation", "theorem" → MUST return kind="math" with real KaTeX steps.
@@ -331,8 +331,9 @@ const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
 
 export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | null {
   const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
-  if (/\bcallout\s*:/i.test(input.hint ?? "") && !isPromptLikeVisualText(input.hint)) return "callout";
-  if (EXPLICIT_CALLOUT_RE.test(text)) return "callout";
+  // Callouts are intentionally NOT detectable — we never produce text-only
+  // slides, even when the user/agent asks for a quote or "key takeaway".
+  // Such requests get promoted to a real visual by the model or the fallback.
   for (const { kind, re } of KIND_KEYWORDS) {
     if (re.test(text)) return kind;
   }
@@ -486,8 +487,9 @@ function createFallbackChartVisual(input: IllustrateInput): Visual {
 }
 
 export function createFallbackVisual(input: IllustrateInput, forcedKind?: Visual["kind"]): Visual {
-  const kind = forcedKind ?? inferFallbackKind(input);
-  if (kind === "callout") return createFallbackCalloutVisual(input);
+  let kind = forcedKind ?? inferFallbackKind(input);
+  // Never produce text-only slides — promote callouts to a real visual.
+  if (kind === "callout") kind = "diagram";
   if (kind === "math") return createFallbackMathVisual(input);
   if (kind === "diagram") return createFallbackDiagramVisual(input);
   if (kind === "chart") return createFallbackChartVisual(input);
@@ -497,10 +499,6 @@ export function createFallbackVisual(input: IllustrateInput, forcedKind?: Visual
 export function isBillingOrCreditError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
   return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
-}
-
-function shouldRenderLocalCallout(input: IllustrateInput) {
-  return detectRequestedKind(input) === "callout";
 }
 
 export async function generateVisual(
@@ -513,9 +511,6 @@ export async function generateVisual(
     generateTextImpl?: GenerateTextLike;
   } = {},
 ): Promise<IllustrateResult> {
-  if (shouldRenderLocalCallout(input)) {
-    return { visual: createFallbackCalloutVisual(input), attempts: 0, warnings: [] };
-  }
 
   const env = opts.env ?? {
     cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
@@ -601,6 +596,11 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
       if (!normalized.ok) {
         lastError = normalized.reason;
         warnings.push(`attempt ${attempt} (${modelId}): ${normalized.reason}`);
+        continue;
+      }
+      if (normalized.visual.kind === "callout") {
+        lastError = `kind="callout" is forbidden — slides must always carry a real visual asset. Return kind="diagram" (mindmap or flowchart), "table", "chart", or "math" with concrete on-screen content.`;
+        warnings.push(`attempt ${attempt} (${modelId}): rejected callout (text-only slide)`);
         continue;
       }
       const check = validateVisual(normalized.visual);
