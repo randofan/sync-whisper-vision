@@ -295,7 +295,7 @@ QUALITY BAR:
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
 
-${"${MERMAID_DIAGRAM_GUIDE}"}
+${MERMAID_DIAGRAM_GUIDE}
 
 OUTPUT: Return a single JSON object. Populate ONLY the chosen kind's spec field. The "kind" field MUST match the populated spec. Respond with valid JSON only, no prose.`;
 
