@@ -331,8 +331,9 @@ const KIND_KEYWORDS: Array<{ kind: Visual["kind"]; re: RegExp }> = [
 
 export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | null {
   const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
-  if (/\bcallout\s*:/i.test(input.hint ?? "") && !isPromptLikeVisualText(input.hint)) return "callout";
-  if (EXPLICIT_CALLOUT_RE.test(text)) return "callout";
+  // Callouts are intentionally NOT detectable — we never produce text-only
+  // slides, even when the user/agent asks for a quote or "key takeaway".
+  // Such requests get promoted to a real visual by the model or the fallback.
   for (const { kind, re } of KIND_KEYWORDS) {
     if (re.test(text)) return kind;
   }
