@@ -325,7 +325,7 @@ describe("generateVisual — kind enforcement, recentVisuals, research-triggerin
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
   });
 
-  it("does not fall back to legacy Groq retries when strict Mermaid is invalid", async () => {
+  it("throws (no deterministic fallback) when strict Mermaid is invalid", async () => {
     const fetchImpl = vi.fn(async () => {
       const payload = {
         title: "RNG topology",
@@ -338,16 +338,13 @@ describe("generateVisual — kind enforcement, recentVisuals, research-triggerin
       );
     });
 
-    const result = await generateVisual(
-      { topic: "RNG expander graph topology", hint: "diagram" },
-      { env: { groqApiKey: "groq-token" }, maxAttempts: 4, fetchImpl },
-    );
-
+    await expect(
+      generateVisual(
+        { topic: "RNG expander graph topology", hint: "diagram" },
+        { env: { groqApiKey: "groq-token" }, maxAttempts: 4, fetchImpl },
+      ),
+    ).rejects.toThrow(/Failed to generate a valid visual via Groq strict mode/i);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(result.attempts).toBe(1);
-    expect(result.visual.kind).toBe("diagram");
-    expect(validateVisual(result.visual)).toEqual({ ok: true });
-    expect(result.warnings.join(" ")).toMatch(/deterministic fallback/i);
   });
 
 
