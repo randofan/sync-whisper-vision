@@ -255,7 +255,7 @@ KIND SELECTION (pick the first that fits, UNLESS the topic/hint explicitly reque
 2. "table" — comparisons, parameters, ablations, datasets, baselines. Prefer 3-6 columns and 3-8 rows of substantive content.
 3. "chart" — quantitative trends/comparisons. Include 8-15 realistic illustrative data points; mark them illustrative in the narration if inferred.
 4. "math" — formulas, losses, derivations, complexity, mathematical definitions. Each step is a KaTeX string (no $ delimiters).
-5. "callout" — FORBIDDEN unless the user explicitly asked for a quote, definition sentence, or one-line takeaway.
+5. "callout" — FORBIDDEN. Never return kind="callout". Slides must always contain a real visual asset (diagram, chart, table, or equations). If the topic only suggests a quote or one-line takeaway, promote it to a diagram (mindmap or flowchart) or table that decomposes the idea into concrete parts.
 
 REQUESTED-KIND RULE (CRITICAL):
 - Topic/hint mentions "math", "equation", "formula", "formalism", "derivation", "theorem" → MUST return kind="math" with real KaTeX steps.
