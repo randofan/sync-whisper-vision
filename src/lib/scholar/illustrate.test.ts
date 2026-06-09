@@ -150,21 +150,36 @@ describe("normalizeLoose — callout robustness (regression)", () => {
   });
 });
 
-describe("generateVisual — surfaces billing failures visibly (no silent fallback)", () => {
-  it("renders an explicit callout locally without touching the paid AI gateway", async () => {
-    const generateTextImpl = vi.fn();
+describe("generateVisual — never produces text-only callout slides", () => {
+  it("rejects model output with kind=callout and retries until a real visual comes back", async () => {
+    const callout = {
+      title: "Key theorem",
+      narration: "Convergence depends on a bounded variance assumption.",
+      kind: "callout",
+      callout: { body: "Convergence depends on a bounded variance assumption." },
+    };
+    const diagram = {
+      title: "Convergence pipeline",
+      narration: "The flow links the variance bound to step-size choice and convergence.",
+      kind: "diagram",
+      diagram: { mermaid: "flowchart LR\n  A[Bounded variance] --> B[Step size]\n  B --> C[Convergence]" },
+    };
+    const generateTextImpl = vi
+      .fn()
+      .mockResolvedValueOnce({ experimental_output: callout })
+      .mockResolvedValueOnce({ experimental_output: diagram });
 
     const result = await generateVisual(
       { topic: "Key theorem", hint: "callout: convergence depends on a bounded variance assumption" },
-      { env: { lovableApiKey: "test-key" }, generateTextImpl },
+      { env: { lovableApiKey: "test-key" }, maxAttempts: 4, generateTextImpl },
     );
 
-    expect(generateTextImpl).not.toHaveBeenCalled();
-    expect(result.attempts).toBe(0);
-    expect(result.visual.kind).toBe("callout");
-    expect(result.visual.callout?.body).toContain("convergence");
-    expect(validateVisual(result.visual)).toEqual({ ok: true });
+    expect(generateTextImpl).toHaveBeenCalledTimes(2);
+    expect(result.visual.kind).not.toBe("callout");
+    expect(result.visual.kind).toBe("diagram");
+    expect(result.warnings.some((w) => /callout/i.test(w))).toBe(true);
   });
+
 
   it("throws a visible Payment Required error instead of fabricating a stub", async () => {
     const generateTextImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
