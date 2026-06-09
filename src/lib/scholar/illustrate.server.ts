@@ -299,7 +299,7 @@ DIAGRAM SYNTAX:
 - For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
 - Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
 
-OUTPUT: Populate ONLY the chosen kind's spec field. The "kind" field MUST match the populated spec.`;
+OUTPUT: Return a single JSON object. Populate ONLY the chosen kind's spec field. The "kind" field MUST match the populated spec. Respond with valid JSON only, no prose.`;
 
 export interface IllustrateInput {
   topic: string;
