@@ -295,10 +295,7 @@ QUALITY BAR:
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
 
-DIAGRAM SYNTAX:
-- First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
-- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
-- Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
+${"${MERMAID_DIAGRAM_GUIDE}"}
 
 OUTPUT: Return a single JSON object. Populate ONLY the chosen kind's spec field. The "kind" field MUST match the populated spec. Respond with valid JSON only, no prose.`;
 
