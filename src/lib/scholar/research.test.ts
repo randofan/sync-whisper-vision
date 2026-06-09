@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateResearch, normalizeResearch } from "./research.server";
+import { _internals, generateResearch, normalizeResearch } from "./research.server";
 
 describe("normalizeResearch", () => {
   it("rejects missing summary", () => {
@@ -41,6 +41,30 @@ describe("normalizeResearch", () => {
 });
 
 describe("generateResearch failure surfacing", () => {
+  it("uses Gemini 3.5 Flash Lite and clamps research generation to one provider call", async () => {
+    const generateContentImpl = vi.fn().mockResolvedValue({
+      text: JSON.stringify({ summary: "Grounded summary for the requested background.", keyPoints: ["One fact"] }),
+    });
+
+    const result = await generateResearch(
+      { query: "background on expander graphs" },
+      { apiKey: "test-key", maxAttempts: 3, generateContentImpl },
+    );
+
+    expect(result.attempts).toBe(1);
+    expect(generateContentImpl).toHaveBeenCalledTimes(1);
+    expect(generateContentImpl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-3.5-flash-lite",
+        config: expect.objectContaining({
+          tools: [{ googleSearch: {} }],
+          thinkingConfig: { thinkingLevel: "low" },
+        }),
+      }),
+    );
+    expect(_internals.GEMINI_MODELS).toEqual(["gemini-3.5-flash-lite"]);
+  });
+
   it("throws a visible Payment Required error instead of fabricating a stub briefing", async () => {
     const generateContentImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
 

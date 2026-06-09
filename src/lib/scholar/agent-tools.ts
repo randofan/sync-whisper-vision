@@ -128,7 +128,7 @@ export async function fetchResearchBriefing(
     payload,
     "Research service",
     fetchImpl,
-    opts,
+    { attempts: 1, ...opts },
   );
 }
 
@@ -265,6 +265,13 @@ export function buildClientTools(host: ToolHost) {
     },
 
     research: (params: ResearchParams) => {
+      const activeResearch = store().researchItems.find(
+        (item) => item.status === "pending" && !item.query.startsWith("Deep reasoning:"),
+      );
+      if (activeResearch) {
+        return `Research already in progress. Continue speaking; do not dispatch another research query for this turn.`;
+      }
+
       const id = uid("res");
       store().upsertResearch({
         id,
@@ -280,7 +287,7 @@ export function buildClientTools(host: ToolHost) {
             query: params.query,
             pdfExcerpt: ctx.text.slice(0, 12_000),
             scope: params.scope,
-          });
+          }, fetch, { attempts: 1 });
           store().patchResearch(id, {
             status: "ready",
             summary: json.summary,

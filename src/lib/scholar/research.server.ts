@@ -45,7 +45,7 @@ export function normalizeResearch(
 
 const SYNTHESIS_SYSTEM = `You are a deep-research librarian feeding factual grounding to a live voice agent.
 
-Use Google Search grounding to verify facts, find primary sources, and surface prior work, then synthesize the findings.
+Use exactly one Google Search grounding pass to verify facts, find primary sources, and synthesize the findings. Keep the request narrow and do not fan out into multiple independent research passes.
 
 Final output rules (strict):
 - Return a single JSON object matching the schema: {"summary": string, "keyPoints": string[]}.
@@ -139,8 +139,7 @@ function defaultGeminiImpl(apiKey: string): GeminiGenerateContent {
 }
 
 const GEMINI_MODELS = [
-  "gemini-3.5-flash",
-  "gemini-2.5-pro",
+  "gemini-3.5-flash-lite",
 ] as const;
 
 const RESPONSE_SCHEMA = {
@@ -170,7 +169,7 @@ export async function generateResearch(
     );
   }
 
-  const maxAttempts = opts.maxAttempts ?? 3;
+  const maxAttempts = Math.min(opts.maxAttempts ?? 1, 1);
   const generateContent = opts.generateContentImpl ?? defaultGeminiImpl(apiKey);
 
   const warnings: string[] = [];
@@ -181,7 +180,7 @@ export async function generateResearch(
   // returns parseable JSON directly without prompt-based JSON discipline.
   const baseConfig: Record<string, unknown> = {
     tools: [{ googleSearch: {} }],
-    thinkingConfig: { thinkingLevel: "medium" },
+    thinkingConfig: { thinkingLevel: "low" },
     responseMimeType: "application/json",
     responseSchema: RESPONSE_SCHEMA,
     systemInstruction: SYNTHESIS_SYSTEM,

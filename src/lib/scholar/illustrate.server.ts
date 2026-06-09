@@ -847,11 +847,13 @@ export async function generateVisual(
 
   // FAST PATH: Groq strict structured outputs. Constrained decoding guarantees
   // schema-valid JSON, so we don't burn 3-4 retries on malformed responses.
+  // If strict JSON is semantically invalid (for example, malformed Mermaid),
+  // return a deterministic visual instead of falling into the legacy retry loop.
   // Skipped if the caller injected a generateTextImpl (legacy test path) or
   // if there's no Groq key.
   if (resolved.source === "groq" && env.groqApiKey && !opts.generateTextImpl) {
+    const kind = pickStrictKind(input);
     try {
-      const kind = pickStrictKind(input);
       const visual = await generateVisualGroqStrict(input, {
         apiKey: env.groqApiKey,
         kind,
@@ -859,9 +861,11 @@ export async function generateVisual(
         recentBlock,
       });
       if (containsHedgeLanguage(visual.narration)) {
-        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): hedge language; falling back to legacy loop`);
+        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): hedge language; using deterministic fallback`);
+        return { visual: createFallbackVisual(input, kind), attempts: 1, warnings };
       } else if (isPromptLikeVisualText(visual.narration)) {
-        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): prompt-like narration; falling back to legacy loop`);
+        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): prompt-like narration; using deterministic fallback`);
+        return { visual: createFallbackVisual(input, kind), attempts: 1, warnings };
       } else {
         return { visual, attempts: 1, warnings };
       }
@@ -872,8 +876,8 @@ export async function generateVisual(
         );
       }
       const msg = err instanceof Error ? err.message : String(err);
-      warnings.push(`strict (${GROQ_MODELS.structured}): ${msg}; falling back to legacy loop`);
-      lastError = msg;
+      warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): ${msg}; using deterministic fallback`);
+      return { visual: createFallbackVisual(input, kind), attempts: 1, warnings };
     }
   }
 
