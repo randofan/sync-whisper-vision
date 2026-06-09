@@ -325,6 +325,31 @@ describe("generateVisual — kind enforcement, recentVisuals, research-triggerin
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
   });
 
+  it("does not fall back to legacy Groq retries when strict Mermaid is invalid", async () => {
+    const fetchImpl = vi.fn(async () => {
+      const payload = {
+        title: "RNG topology",
+        narration: "The diagram maps RNG topology components.",
+        mermaid: "flowchart LR",
+      };
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: JSON.stringify(payload) } }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    const result = await generateVisual(
+      { topic: "RNG expander graph topology", hint: "diagram" },
+      { env: { groqApiKey: "groq-token" }, maxAttempts: 4, fetchImpl },
+    );
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.attempts).toBe(1);
+    expect(result.visual.kind).toBe("diagram");
+    expect(validateVisual(result.visual)).toEqual({ ok: true });
+    expect(result.warnings.join(" ")).toMatch(/deterministic fallback/i);
+  });
+
 
   it("retries when the model returns a hedge callout for a math request", async () => {
     const hedgeCallout = {
