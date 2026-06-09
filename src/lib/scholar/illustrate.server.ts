@@ -1,9 +1,8 @@
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
 import {
-  CLOUDFLARE_MODELS,
+  GROQ_MODELS,
   resolveAiProvider,
-  runCloudflareAiText,
   type AiProviderEnv,
   type ResolvedAiProvider,
 } from "@/lib/ai-gateway";
