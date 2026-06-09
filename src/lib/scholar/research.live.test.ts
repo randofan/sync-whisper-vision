@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { generateResearch } from "./research.server";
 
-const hasGroq = !!process.env.GROQ_API_KEY;
-const hasLovable = !!process.env.LOVABLE_API_KEY;
-const runIf = hasGroq || hasLovable ? describe : describe.skip;
+const hasGemini = !!process.env.GEMINI_API_KEY;
+const runIf = hasGemini ? describe : describe.skip;
 
 runIf("research live deep agent", () => {
   it(
