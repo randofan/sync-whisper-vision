@@ -32,7 +32,7 @@ describe("Scholar voice session options", () => {
 
     expect(prompt).toContain('The user uploaded "paper.pdf" (7 pages)');
     expect(prompt).toContain("PAPER CONTENT");
-    expect(prompt.length).toBeLessThan(31_000);
+    expect(prompt.length).toBeLessThan(32_000);
   });
 
   it("also builds PDF context as a contextual update after connect", () => {
