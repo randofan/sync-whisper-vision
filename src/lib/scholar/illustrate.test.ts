@@ -170,7 +170,7 @@ describe("generateVisual — never produces text-only callout slides", () => {
       .mockResolvedValueOnce({ experimental_output: diagram });
 
     const result = await generateVisual(
-      { topic: "Key theorem", hint: "callout: convergence depends on a bounded variance assumption" },
+      { topic: "Key insight from paper", hint: "callout: convergence depends on a bounded variance assumption" },
       { env: { lovableApiKey: "test-key" }, maxAttempts: 4, generateTextImpl },
     );
 
