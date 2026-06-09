@@ -845,6 +845,39 @@ export async function generateVisual(
         .join("\n")}\n`
     : "";
 
+  // FAST PATH: Groq strict structured outputs. Constrained decoding guarantees
+  // schema-valid JSON, so we don't burn 3-4 retries on malformed responses.
+  // Skipped if the caller injected a generateTextImpl (legacy test path) or
+  // if there's no Groq key.
+  if (resolved.source === "groq" && env.groqApiKey && !opts.generateTextImpl) {
+    try {
+      const kind = pickStrictKind(input);
+      const visual = await generateVisualGroqStrict(input, {
+        apiKey: env.groqApiKey,
+        kind,
+        fetchImpl: opts.fetchImpl,
+        recentBlock,
+      });
+      if (containsHedgeLanguage(visual.narration)) {
+        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): hedge language; falling back to legacy loop`);
+      } else if (isPromptLikeVisualText(visual.narration)) {
+        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): prompt-like narration; falling back to legacy loop`);
+      } else {
+        return { visual, attempts: 1, warnings };
+      }
+    } catch (err) {
+      if (isBillingOrCreditError(err)) {
+        throw new Error(
+          `Groq rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`strict (${GROQ_MODELS.structured}): ${msg}; falling back to legacy loop`);
+      lastError = msg;
+    }
+  }
+
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const modelId = models[Math.min(attempt - 1, models.length - 1)];
     const model = resolved.provider(modelId);
