@@ -21,7 +21,7 @@ NO INTERNAL SYNTAX LEAKAGE (CRITICAL): Tool calls go through the structured tool
 
 PAPER CONTENT:
 """
-${pdf.text.slice(0, 29_000)}
+${pdf.text.slice(0, 28_700)}
 """`;
 }
 
