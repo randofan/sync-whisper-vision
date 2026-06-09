@@ -520,6 +520,289 @@ export function isBillingOrCreditError(err: unknown) {
   return /\b402\b|payment required|billing|credits? exhausted|insufficient credits|add credits/i.test(msg);
 }
 
+// ---------------------------------------------------------------------------
+// Groq strict structured outputs path
+//
+// Groq's openai/gpt-oss-20b model supports response_format=json_schema with
+// strict: true, which uses constrained decoding to GUARANTEE schema-valid JSON.
+// We pre-select the visual kind from the request so the schema is a single
+// concrete object (strict mode forbids optional fields / additionalProperties),
+// and we stop burning retries on malformed JSON.
+// ---------------------------------------------------------------------------
+
+export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+
+type StrictKind = "diagram" | "table" | "math" | "chart";
+
+// JSON Schemas built for strict mode (all fields required, additionalProperties: false).
+const STRICT_KIND_SCHEMAS: Record<StrictKind, Record<string, unknown>> = {
+  diagram: {
+    type: "object",
+    properties: {
+      title: { type: "string", description: "≤60 char specific title" },
+      narration: { type: "string", description: "One short sentence describing on-screen content" },
+      mermaid: {
+        type: "string",
+        description:
+          "Valid mermaid source. First line must be one of: 'graph TD', 'graph LR', 'flowchart TD', 'flowchart LR', 'mindmap', 'sequenceDiagram', 'classDiagram', 'stateDiagram-v2'. Balance all brackets.",
+      },
+    },
+    required: ["title", "narration", "mermaid"],
+    additionalProperties: false,
+  },
+  table: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      narration: { type: "string" },
+      columns: {
+        type: "array",
+        items: { type: "string" },
+        description: "3-6 column headers",
+      },
+      rows: {
+        type: "array",
+        description: "3-8 rows; each row must have exactly the same length as columns",
+        items: {
+          type: "array",
+          items: { type: "string" },
+        },
+      },
+    },
+    required: ["title", "narration", "columns", "rows"],
+    additionalProperties: false,
+  },
+  math: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      narration: { type: "string" },
+      inline: { type: "string", description: "Optional one-line plain English summary; empty string is OK" },
+      steps: {
+        type: "array",
+        items: { type: "string" },
+        description: "Each step is a KaTeX string with NO $ delimiters",
+      },
+    },
+    required: ["title", "narration", "inline", "steps"],
+    additionalProperties: false,
+  },
+  chart: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      narration: { type: "string" },
+      chartType: { type: "string", enum: ["line", "bar", "area", "scatter"] },
+      xLabel: { type: "string" },
+      yLabel: { type: "string" },
+      series: {
+        type: "array",
+        description: "One entry per data series",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            points: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  x: { type: "string", description: "X-axis label or value as string" },
+                  y: { type: "number" },
+                },
+                required: ["x", "y"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["name", "points"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["title", "narration", "chartType", "xLabel", "yLabel", "series"],
+    additionalProperties: false,
+  },
+};
+
+interface StrictChartPayload {
+  title: string;
+  narration: string;
+  chartType: "line" | "bar" | "area" | "scatter";
+  xLabel: string;
+  yLabel: string;
+  series: Array<{ name: string; points: Array<{ x: string; y: number }> }>;
+}
+
+function strictPayloadToVisual(kind: StrictKind, payload: unknown): Visual {
+  const p = payload as Record<string, unknown>;
+  const title = String(p.title ?? "").slice(0, 80);
+  const narration = String(p.narration ?? "");
+  if (kind === "diagram") {
+    return {
+      title,
+      narration,
+      kind: "diagram",
+      diagram: { mermaid: sanitizeMermaid(String(p.mermaid ?? "")) },
+    };
+  }
+  if (kind === "table") {
+    return {
+      title,
+      narration,
+      kind: "table",
+      table: {
+        columns: (p.columns as string[]) ?? [],
+        rows: (p.rows as string[][]) ?? [],
+      },
+    };
+  }
+  if (kind === "math") {
+    const inline = typeof p.inline === "string" && p.inline.trim() ? p.inline : undefined;
+    return {
+      title,
+      narration,
+      kind: "math",
+      math: {
+        steps: (p.steps as string[]) ?? [],
+        ...(inline ? { inline } : {}),
+      },
+    };
+  }
+  // chart — fold {series:[{name,points:[{x,y}]}]} back into {xKey,yKeys,data[]}
+  const chart = payload as StrictChartPayload;
+  const xKey = "x";
+  const yKeys = chart.series.map((s) => s.name);
+  // Merge points by x value across series.
+  const merged = new Map<string, Record<string, number | string>>();
+  for (const s of chart.series) {
+    for (const pt of s.points) {
+      const row = merged.get(pt.x) ?? { x: pt.x };
+      row[s.name] = pt.y;
+      merged.set(pt.x, row);
+    }
+  }
+  return {
+    title,
+    narration,
+    kind: "chart",
+    chart: {
+      chartType: chart.chartType,
+      xKey,
+      yKeys,
+      xLabel: chart.xLabel || undefined,
+      yLabel: chart.yLabel || undefined,
+      data: Array.from(merged.values()),
+    },
+  };
+}
+
+const STRICT_SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
+
+The "kind" of slide has been pre-selected by the caller; fill the schema for that kind with concrete, substantive content.
+
+NO-HEDGE RULE (CRITICAL):
+- NEVER write text like "the paper does not provide", "no explicit equations", "not enough information", "the text does not contain", "insufficient detail", or any meta-commentary about the paper's contents.
+- If the paper excerpt lacks specifics, fall back to CANONICAL TEXTBOOK KNOWLEDGE of the topic (standard definitions, well-known equations, classical diagrams) and produce the visual from that. Note "illustrative" in the narration if needed, but DELIVER the visualization.
+- Narration MUST describe concrete on-screen content. Never start narration with "Diagram:", "Chart:", "A summary of", "Overview of", or similar meta-labels.
+
+QUALITY BAR:
+- Add information beyond restating the title.
+- Plural topics enumerate the actual items with substance.
+- "narration" ≤20 words, references concrete content.
+- "title" ≤60 chars, specific.
+
+DIAGRAM SYNTAX (when kind=diagram):
+- First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
+- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
+- Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
+
+TABLE SHAPE (when kind=table): 3-6 columns, 3-8 rows of substantive content. Every row MUST have exactly the same number of cells as the columns array.
+
+MATH SHAPE (when kind=math): each step is a KaTeX string (no $ delimiters). Use \\frac, \\sum, etc.
+
+CHART SHAPE (when kind=chart): 8-15 realistic illustrative points per series.`;
+
+/** Pick the concrete kind to ask the strict-output model for. Never callout. */
+export function pickStrictKind(input: IllustrateInput): StrictKind {
+  const requested = detectRequestedKind(input);
+  if (requested && requested !== "callout") return requested;
+  const inferred = inferFallbackKind(input);
+  return inferred === "callout" ? "diagram" : (inferred as StrictKind);
+}
+
+/** Call Groq's strict structured-output endpoint. Returns a validated Visual. */
+export async function generateVisualGroqStrict(
+  input: IllustrateInput,
+  opts: {
+    apiKey: string;
+    kind?: StrictKind;
+    model?: string;
+    fetchImpl?: FetchLike;
+    recentBlock?: string;
+  },
+): Promise<Visual> {
+  const kind = opts.kind ?? pickStrictKind(input);
+  const schema = STRICT_KIND_SCHEMAS[kind];
+  const fetchImpl = opts.fetchImpl ?? (globalThis.fetch.bind(globalThis) as FetchLike);
+  const model = opts.model ?? GROQ_MODELS.structured;
+
+  const userPrompt = `Topic: ${input.topic}
+${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${opts.recentBlock ?? ""}
+Kind pre-selected by caller: ${kind}.
+Produce the JSON object for this kind with concrete, information-dense content.`;
+
+  const body = {
+    model,
+    messages: [
+      { role: "system", content: STRICT_SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: `visual_${kind}`,
+        strict: true,
+        schema,
+      },
+    },
+    temperature: 0.5,
+  };
+
+  const res = await fetchImpl(`${GROQ_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${opts.apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Groq strict call failed: ${res.status} ${res.statusText} ${text.slice(0, 400)}`);
+  }
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = json.choices?.[0]?.message?.content ?? "";
+  if (!content) throw new Error("Groq strict call returned empty content");
+  let payload: unknown;
+  try {
+    payload = JSON.parse(content);
+  } catch (err) {
+    throw new Error(
+      `Groq strict call returned non-JSON content despite strict mode: ${(err as Error).message}. Content head: ${content.slice(0, 200)}`,
+    );
+  }
+  const visual = strictPayloadToVisual(kind, payload);
+  const check = validateVisual(visual);
+  if (!check.ok) {
+    throw new Error(`Strict visual failed downstream validation: ${check.reason}`);
+  }
+  return visual;
+}
+
+
 export async function generateVisual(
   input: IllustrateInput,
   opts: {
