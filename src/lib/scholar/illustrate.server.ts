@@ -487,8 +487,9 @@ function createFallbackChartVisual(input: IllustrateInput): Visual {
 }
 
 export function createFallbackVisual(input: IllustrateInput, forcedKind?: Visual["kind"]): Visual {
-  const kind = forcedKind ?? inferFallbackKind(input);
-  if (kind === "callout") return createFallbackCalloutVisual(input);
+  let kind = forcedKind ?? inferFallbackKind(input);
+  // Never produce text-only slides — promote callouts to a real visual.
+  if (kind === "callout") kind = "diagram";
   if (kind === "math") return createFallbackMathVisual(input);
   if (kind === "diagram") return createFallbackDiagramVisual(input);
   if (kind === "chart") return createFallbackChartVisual(input);
