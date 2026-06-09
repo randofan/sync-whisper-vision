@@ -614,7 +614,7 @@ const STRICT_KIND_SCHEMAS: Record<StrictKind, Record<string, unknown>> = {
       mermaid: {
         type: "string",
         description:
-          "Valid mermaid source. First line must be one of: 'graph TD', 'graph LR', 'flowchart TD', 'flowchart LR', 'mindmap', 'sequenceDiagram', 'classDiagram', 'stateDiagram-v2'. Balance all brackets.",
+          "Valid mermaid source. Line 1 is exactly one header: 'flowchart TD', 'flowchart LR', 'mindmap', 'sequenceDiagram', 'classDiagram', or 'stateDiagram-v2'. Do NOT mix syntaxes — mindmaps use indentation only and MUST NOT contain '-->' arrows or '[Label]' children. Flowcharts use 'A[Label] --> B[Label]' with short ASCII ids. Balance every [ ] ( ) { }. No ':' inside node labels.",
       },
     },
     required: ["title", "narration", "mermaid"],
