@@ -110,7 +110,26 @@ export function normalizeLoose(
         const mermaid = firstString(["mermaid", "mermaidDiagram", "mermaid_code", "diagramCode", "source", "code"]);
         if (mermaid) return { mermaid };
       }
-      if (field === "table" && raw.columns && raw.rows) return { columns: raw.columns, rows: raw.rows };
+      if (field === "table") {
+        if (raw.columns && raw.rows) return { columns: raw.columns, rows: raw.rows };
+        // Model often nests table under spec/payload/visual/data, or returns
+        // { table: { columns, rows } } via a sibling object. Search for the
+        // first nested object that has both columns and rows arrays.
+        for (const nested of nestedCandidates) {
+          if (Array.isArray(nested.columns) && Array.isArray(nested.rows)) {
+            return { columns: nested.columns, rows: nested.rows };
+          }
+          if (nested.table && typeof nested.table === "object") return nested.table;
+        }
+        for (const value of Object.values(record)) {
+          if (value && typeof value === "object" && !Array.isArray(value)) {
+            const obj = value as Record<string, unknown>;
+            if (Array.isArray(obj.columns) && Array.isArray(obj.rows)) {
+              return { columns: obj.columns, rows: obj.rows };
+            }
+          }
+        }
+      }
       if (field === "chart" && raw.chartType && raw.xKey && raw.yKeys && raw.data) {
         return {
           chartType: raw.chartType,
