@@ -1,9 +1,8 @@
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
 import {
-  CLOUDFLARE_MODELS,
+  GROQ_MODELS,
   resolveAiProvider,
-  runCloudflareAiText,
   type AiProviderEnv,
   type ResolvedAiProvider,
 } from "@/lib/ai-gateway";
@@ -513,8 +512,7 @@ export async function generateVisual(
 ): Promise<IllustrateResult> {
 
   const env = opts.env ?? {
-    cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
-    cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    groqApiKey: process.env.GROQ_API_KEY,
     lovableApiKey: opts.apiKey || process.env.LOVABLE_API_KEY,
   };
   let resolved: ResolvedAiProvider;
@@ -529,8 +527,8 @@ export async function generateVisual(
   const runGenerateText = (opts.generateTextImpl ?? generateText) as GenerateTextLike;
 
   const models =
-    resolved.source === "cloudflare"
-      ? [CLOUDFLARE_MODELS.primary]
+    resolved.source === "groq"
+      ? [GROQ_MODELS.fast]
       : ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro"];
 
   const warnings: string[] = [];
@@ -553,26 +551,12 @@ export async function generateVisual(
 ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context (excerpt):\n${input.pdfExcerpt.slice(0, 8000)}\n` : ""}${recentBlock}${correction}`;
 
     try {
-      const { experimental_output: rawOut, text } =
-        resolved.source === "cloudflare" && !opts.generateTextImpl && env.cloudflareApiToken && env.cloudflareAccountId
-          ? {
-              experimental_output: undefined,
-              text: await runCloudflareAiText({
-                apiToken: env.cloudflareApiToken,
-                accountId: env.cloudflareAccountId,
-                modelId,
-                system: SYSTEM_PROMPT,
-                prompt,
-                temperature: 0.1,
-                maxTokens: 4096,
-              }),
-            }
-          : await runGenerateText({
-              model,
-              experimental_output: Output.object({ schema: LooseVisualSchema }),
-              system: SYSTEM_PROMPT,
-              prompt,
-            });
+      const { experimental_output: rawOut, text } = await runGenerateText({
+        model,
+        experimental_output: Output.object({ schema: LooseVisualSchema }),
+        system: SYSTEM_PROMPT,
+        prompt,
+      });
       let loose: z.infer<typeof LooseVisualSchema> | undefined;
       const generated = LooseVisualSchema.safeParse(rawOut);
       if (generated.success) loose = generated.data;
@@ -644,7 +628,7 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
       if (isBillingOrCreditError(err)) {
         // Surface visibly — silent stubs were hiding real outages.
         throw new Error(
-          `${resolved.source === "cloudflare" ? "Cloudflare Workers AI" : "Lovable AI"} rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
+          `${resolved.source === "groq" ? "Groq" : "Lovable AI"} rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
         );
       }
       lastError = msg;

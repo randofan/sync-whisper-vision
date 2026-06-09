@@ -287,47 +287,38 @@ describe("prompt-like visual text guardrails", () => {
 });
 
 describe("generateVisual — kind enforcement, recentVisuals, research-triggering hints", () => {
-  it("uses Cloudflare's native GLM run endpoint and never falls through to deprecated fallback models", async () => {
+  it("uses Groq's OpenAI-compatible endpoint with the fast llama model and no cross-model fallback", async () => {
     const validDiagram = {
       title: "RNG topology",
       narration: "The graph contrasts hierarchical fat-tree links with flat expander connectivity.",
       kind: "diagram",
       diagram: { mermaid: "flowchart LR\n  A[Fat tree] --> B[Core]\n  C[Expander] --> D[Many cuts]" },
     };
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json({
-          success: true,
-          result: { choices: [{ message: { content: "not json" } }] },
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          success: true,
-          result: { choices: [{ message: { content: JSON.stringify(validDiagram) } }] },
-        }),
-      );
-    vi.stubGlobal("fetch", fetchImpl);
+    const capturedModels: string[] = [];
+    const generateTextImpl = vi
+      .fn(async (args: Record<string, unknown>) => {
+        const model = args.model as { modelId?: string };
+        capturedModels.push(model?.modelId ?? "");
+        return { experimental_output: validDiagram };
+      });
 
     const result = await generateVisual(
       { topic: "RNG expander graph topology", hint: "diagram" },
       {
-        env: { cloudflareApiToken: "cf-token", cloudflareAccountId: "acct" },
+        env: { groqApiKey: "groq-token" },
         maxAttempts: 2,
+        generateTextImpl,
       },
     );
 
     expect(result.visual.kind).toBe("diagram");
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-    for (const [url, init] of fetchImpl.mock.calls) {
-      expect(String(url)).toContain("/ai/run/@cf/zai-org/glm-4.7-flash");
-      expect(String(url)).not.toContain("/ai/v1");
-      expect(String(url)).not.toMatch(/llama|hermes/i);
-      const body = JSON.parse(String((init as RequestInit).body));
-      expect(body.response_format).toEqual({ type: "json_object" });
+    expect(generateTextImpl).toHaveBeenCalledTimes(1);
+    for (const m of capturedModels) {
+      expect(m).toBe("llama-3.1-8b-instant");
+      expect(m).not.toMatch(/cloudflare|cf\/|hermes|gemini/i);
     }
   });
+
 
   it("retries when the model returns a hedge callout for a math request", async () => {
     const hedgeCallout = {

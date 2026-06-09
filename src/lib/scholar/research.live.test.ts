@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { generateResearch } from "./research.server";
 
-const hasCloudflare = !!(process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID);
+const hasGroq = !!process.env.GROQ_API_KEY;
 const hasLovable = !!process.env.LOVABLE_API_KEY;
-const runIf = hasCloudflare || hasLovable ? describe : describe.skip;
+const runIf = hasGroq || hasLovable ? describe : describe.skip;
 
 runIf("research live deep agent", () => {
   it(
