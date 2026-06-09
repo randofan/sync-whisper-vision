@@ -139,9 +139,21 @@ function defaultGeminiImpl(apiKey: string): GeminiGenerateContent {
 }
 
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",
+  "gemini-3.5-flash",
   "gemini-2.5-pro",
 ] as const;
+
+const RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  required: ["summary", "keyPoints"],
+  properties: {
+    summary: { type: Type.STRING },
+    keyPoints: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+  },
+} as const;
 
 export async function generateResearch(
   input: ResearchInput,
@@ -164,12 +176,14 @@ export async function generateResearch(
   const warnings: string[] = [];
   let lastError = "";
 
-  // Google Search grounding cannot be combined with responseSchema/JSON mime
-  // in Gemini's API — the model must produce JSON via prompt discipline.
-  // We bump thinkingBudget to get higher-quality synthesis.
+  // Per the official @google/genai snippet, googleSearch grounding CAN be
+  // combined with responseMimeType + responseSchema. Use both so the model
+  // returns parseable JSON directly without prompt-based JSON discipline.
   const baseConfig: Record<string, unknown> = {
     tools: [{ googleSearch: {} }],
-    thinkingConfig: { thinkingBudget: 2048 },
+    thinkingConfig: { thinkingLevel: "medium" },
+    responseMimeType: "application/json",
+    responseSchema: RESPONSE_SCHEMA,
     systemInstruction: SYNTHESIS_SYSTEM,
   };
 
@@ -180,9 +194,7 @@ export async function generateResearch(
       : "";
     const userText = `Research query: ${input.query}
 ${input.pdfExcerpt ? `\nThe user is reading this paper (excerpt):\n${input.pdfExcerpt.slice(0, 3500)}\n` : ""}
-Investigate using Google Search, then return ONLY a JSON object of shape:
-{"summary": "<4-8 dense sentences>", "keyPoints": ["bullet", "bullet", ...]}
-No prose before or after the JSON. No markdown fences. No URLs or citations in the values.${correction}`;
+Investigate using Google Search, then return a JSON object matching the schema (summary + keyPoints). No URLs or citations in the values.${correction}`;
 
     try {
       const { text } = await generateContent({
@@ -190,13 +202,20 @@ No prose before or after the JSON. No markdown fences. No URLs or citations in t
         contents: [{ role: "user", parts: [{ text: userText }] }],
         config: baseConfig,
       });
-      const loose = extractJsonFromText(text ?? "");
-      if (!loose) {
+      // Structured output should already be JSON, but fall back to extraction
+      // in case the model wraps it in prose.
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text ?? "");
+      } catch {
+        parsed = extractJsonFromText(text ?? "");
+      }
+      if (!parsed) {
         lastError = `model returned no parseable JSON briefing. Raw text: ${(text ?? "").slice(0, 400)}`;
         warnings.push(`attempt ${attempt} (${modelId}): no parseable JSON`);
         continue;
       }
-      const normalized = normalizeResearch(loose);
+      const normalized = normalizeResearch(parsed);
       if (!normalized.ok) {
         lastError = normalized.reason;
         warnings.push(`attempt ${attempt} (${modelId}): ${normalized.reason}`);
@@ -225,9 +244,7 @@ No prose before or after the JSON. No markdown fences. No URLs or citations in t
   );
 }
 
-// Re-export for backwards compatibility (used by API routes/tests for diagnostics).
-export const _internals = { extractJsonFromText, GEMINI_MODELS };
+export const _internals = { extractJsonFromText, GEMINI_MODELS, RESPONSE_SCHEMA };
 
-// Removed Type import dependency — keep the symbol re-exported in case
-// downstream code wants to add a strict responseSchema variant later.
 export { Type };
+
