@@ -55,14 +55,14 @@ describe("generateResearch failure surfacing", () => {
     expect(generateContentImpl).toHaveBeenCalledTimes(1);
     expect(generateContentImpl).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "gemini-3.5-flash-lite",
+        model: "gemini-3.1-flash-lite",
         config: expect.objectContaining({
           tools: [{ googleSearch: {} }],
           thinkingConfig: { thinkingLevel: "low" },
         }),
       }),
     );
-    expect(_internals.GEMINI_MODELS).toEqual(["gemini-3.5-flash-lite"]);
+    expect(_internals.GEMINI_MODELS).toEqual(["gemini-3.1-flash-lite"]);
   });
 
   it("throws a visible Payment Required error instead of fabricating a stub briefing", async () => {
