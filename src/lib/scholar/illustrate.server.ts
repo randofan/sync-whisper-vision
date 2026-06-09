@@ -765,10 +765,7 @@ QUALITY BAR:
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
 
-DIAGRAM SYNTAX (when kind=diagram):
-- First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
-- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
-- Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
+${MERMAID_DIAGRAM_GUIDE}
 
 TABLE SHAPE (when kind=table): 3-6 columns, 3-8 rows of substantive content. Every row MUST have exactly the same number of cells as the columns array.
 
