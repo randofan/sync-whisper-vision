@@ -42,7 +42,7 @@ describe("normalizeResearch", () => {
 
 describe("generateResearch failure surfacing", () => {
   it("throws a visible Payment Required error instead of fabricating a stub briefing", async () => {
-    const generateTextImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
+    const generateContentImpl = vi.fn().mockRejectedValue(new Error("Payment Required"));
 
     await expect(
       generateResearch(
@@ -50,15 +50,21 @@ describe("generateResearch failure surfacing", () => {
           query: "related work for lossless BF16 compression",
           pdfExcerpt: "Unweight separates BF16 values into sign, exponent, and mantissa fields.",
         },
-        { env: { lovableApiKey: "test-key" }, maxAttempts: 3, generateTextImpl },
+        { apiKey: "test-key", maxAttempts: 3, generateContentImpl },
       ),
-    ).rejects.toThrow(/credits exhausted|unpaid/i);
-    expect(generateTextImpl).toHaveBeenCalledTimes(1);
+    ).rejects.toThrow(/credits exhausted|unpaid|quota/i);
+    expect(generateContentImpl).toHaveBeenCalledTimes(1);
   });
 
   it("throws when no AI provider is configured", async () => {
-    await expect(
-      generateResearch({ query: "anything" }, { env: {}, maxAttempts: 1 }),
-    ).rejects.toThrow(/No AI provider configured/);
+    const prev = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      await expect(
+        generateResearch({ query: "anything" }, { maxAttempts: 1 }),
+      ).rejects.toThrow(/No AI provider configured/);
+    } finally {
+      if (prev !== undefined) process.env.GEMINI_API_KEY = prev;
+    }
   });
 });
