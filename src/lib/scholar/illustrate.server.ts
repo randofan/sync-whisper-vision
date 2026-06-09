@@ -252,9 +252,26 @@ export function validateMermaid(src: string): { ok: true } | { ok: false; reason
 }
 
 function sanitizeMermaid(src: string) {
-  return src
+  let out = src
     .replace(/\[([^\]\n]*?):\s*([^\]\n]*?)\]/g, "[$1 - $2]")
     .replace(/\(\(([^)\n]*?):\s*([^)]*?)\)\)/g, "(($1 - $2))");
+  // Mindmaps cannot contain flowchart arrows; convert "a --> b" to a parent/child
+  // pair so we at least produce parseable output instead of a lexer error.
+  const firstLine = out.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  if (/^mindmap\b/.test(firstLine)) {
+    out = out
+      .split("\n")
+      .map((line) => {
+        const m = line.match(/^(\s*)(.+?)\s*-->\s*(.+?)\s*$/);
+        if (!m) return line;
+        const [, indent, parent, child] = m;
+        const cleanParent = parent.replace(/^\[|\]$/g, "").trim();
+        const cleanChild = child.replace(/^\[|\]$/g, "").trim();
+        return `${indent}${cleanParent}\n${indent}  ${cleanChild}`;
+      })
+      .join("\n");
+  }
+  return out;
 }
 
 export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: string } {
@@ -266,6 +283,62 @@ export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: s
   }
   return { ok: true };
 }
+
+const MERMAID_DIAGRAM_GUIDE = `MERMAID DIAGRAM SKILL (read carefully — invalid mermaid is the #1 failure mode):
+
+1. HEADER (line 1, REQUIRED). Pick EXACTLY ONE and never combine syntaxes:
+   - "flowchart TD" or "flowchart LR" — boxes/arrows for processes, architectures, pipelines.
+   - "mindmap" — hierarchical "list of N things" topics.
+   - "sequenceDiagram" — actor-to-actor message timelines.
+   - "classDiagram" — class boxes with fields/methods + relationships.
+   - "stateDiagram-v2" — state transitions.
+
+2. SYNTAX IS PER-HEADER. Do NOT mix. Common failures we reject:
+   - Using "-->" inside a "mindmap" (mindmaps use INDENTATION ONLY, no arrows).
+   - Using "[Label]" boxes in mindmap children (use plain text or shape parens).
+   - Bare bracket starts like "[WP0]" without a node id before them.
+   - Unbalanced [ ], ( ), { } — every open bracket needs a close.
+   - Colons inside node labels: write "[Step A - detail]" not "[Step A: detail]".
+   - Quoted multi-word labels: use [Long label here] not [Long label, here]; if you need a comma or special char, wrap the whole label in double quotes: ["Long, fancy label"].
+
+3. FLOWCHART RULES:
+   - Every edge is "NodeId --> OtherId" or "NodeId -- label --> OtherId".
+   - Declare node text once with shape: A[Box], B((Circle)), C{Diamond}, D[/Parallelogram/]; then reference by id A, B, C, D in edges.
+   - Node ids are short ASCII (A, B, step1, wp0). Labels go inside the shape brackets.
+   - Example (COPY THIS SHAPE):
+     flowchart LR
+       A[User query] --> B{Cache hit?}
+       B -- yes --> C[Return cached]
+       B -- no --> D[Run model]
+       D --> E[(Store result)]
+       E --> C
+
+4. MINDMAP RULES (use for "summary", "contributions", "components", "list of N"):
+   - NO ARROWS. Hierarchy is INDENTATION (2 spaces per level).
+   - Root on its own line. Children indented under it. No "[ ]" required; if used, no colons inside.
+   - Example (COPY THIS SHAPE):
+     mindmap
+       root((Paper title))
+         Contribution 1
+           Detail A
+           Detail B
+         Contribution 2
+           Detail C
+         Contribution 3
+
+5. SEQUENCE EXAMPLE:
+   sequenceDiagram
+     participant U as User
+     participant S as Server
+     U->>S: request
+     S-->>U: response
+
+6. SELF-CHECK BEFORE EMITTING:
+   - Line 1 is exactly one header keyword.
+   - No "-->" anywhere if header is "mindmap".
+   - Every "[" has a matching "]"; every "(" has ")"; every "{" has "}".
+   - No ":" inside [ ] or (( )) labels.
+   - At least 4 substantive nodes/items.`;
 
 const SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
 
@@ -295,10 +368,7 @@ QUALITY BAR:
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
 
-DIAGRAM SYNTAX:
-- First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
-- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
-- Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
+${MERMAID_DIAGRAM_GUIDE}
 
 OUTPUT: Return a single JSON object. Populate ONLY the chosen kind's spec field. The "kind" field MUST match the populated spec. Respond with valid JSON only, no prose.`;
 
@@ -544,7 +614,7 @@ const STRICT_KIND_SCHEMAS: Record<StrictKind, Record<string, unknown>> = {
       mermaid: {
         type: "string",
         description:
-          "Valid mermaid source. First line must be one of: 'graph TD', 'graph LR', 'flowchart TD', 'flowchart LR', 'mindmap', 'sequenceDiagram', 'classDiagram', 'stateDiagram-v2'. Balance all brackets.",
+          "Valid mermaid source. Line 1 is exactly one header: 'flowchart TD', 'flowchart LR', 'mindmap', 'sequenceDiagram', 'classDiagram', or 'stateDiagram-v2'. Do NOT mix syntaxes — mindmaps use indentation only and MUST NOT contain '-->' arrows or '[Label]' children. Flowcharts use 'A[Label] --> B[Label]' with short ASCII ids. Balance every [ ] ( ) { }. No ':' inside node labels.",
       },
     },
     required: ["title", "narration", "mermaid"],
@@ -712,10 +782,7 @@ QUALITY BAR:
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
 
-DIAGRAM SYNTAX (when kind=diagram):
-- First line MUST be one of: "graph TD", "graph LR", "flowchart TD", "flowchart LR", "mindmap", "sequenceDiagram", "classDiagram", "stateDiagram-v2".
-- For "list of N things" topics, prefer "mindmap" with the topic as root and each item as a child node.
-- Short ASCII node labels; quote multi-word labels inside [ ]. Balance all brackets.
+${MERMAID_DIAGRAM_GUIDE}
 
 TABLE SHAPE (when kind=table): 3-6 columns, 3-8 rows of substantive content. Every row MUST have exactly the same number of cells as the columns array.
 
