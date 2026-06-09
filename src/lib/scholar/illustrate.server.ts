@@ -1,6 +1,7 @@
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
 import {
+  GROQ_BASE_URL,
   GROQ_MODELS,
   resolveAiProvider,
   type AiProviderEnv,
