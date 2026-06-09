@@ -628,7 +628,7 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
       if (isBillingOrCreditError(err)) {
         // Surface visibly — silent stubs were hiding real outages.
         throw new Error(
-          `${resolved.source === "cloudflare" ? "Cloudflare Workers AI" : "Lovable AI"} rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
+          `${resolved.source === "groq" ? "Groq" : "Lovable AI"} rejected the request as unpaid/credits exhausted. Add credits or switch providers. (${msg})`,
         );
       }
       lastError = msg;
