@@ -252,9 +252,26 @@ export function validateMermaid(src: string): { ok: true } | { ok: false; reason
 }
 
 function sanitizeMermaid(src: string) {
-  return src
+  let out = src
     .replace(/\[([^\]\n]*?):\s*([^\]\n]*?)\]/g, "[$1 - $2]")
     .replace(/\(\(([^)\n]*?):\s*([^)]*?)\)\)/g, "(($1 - $2))");
+  // Mindmaps cannot contain flowchart arrows; convert "a --> b" to a parent/child
+  // pair so we at least produce parseable output instead of a lexer error.
+  const firstLine = out.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  if (/^mindmap\b/.test(firstLine)) {
+    out = out
+      .split("\n")
+      .map((line) => {
+        const m = line.match(/^(\s*)(.+?)\s*-->\s*(.+?)\s*$/);
+        if (!m) return line;
+        const [, indent, parent, child] = m;
+        const cleanParent = parent.replace(/^\[|\]$/g, "").trim();
+        const cleanChild = child.replace(/^\[|\]$/g, "").trim();
+        return `${indent}${cleanParent}\n${indent}  ${cleanChild}`;
+      })
+      .join("\n");
+  }
+  return out;
 }
 
 export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: string } {
