@@ -598,6 +598,11 @@ ${input.hint ? `Hint: ${input.hint}\n` : ""}${input.pdfExcerpt ? `Paper context 
         warnings.push(`attempt ${attempt} (${modelId}): ${normalized.reason}`);
         continue;
       }
+      if (normalized.visual.kind === "callout") {
+        lastError = `kind="callout" is forbidden — slides must always carry a real visual asset. Return kind="diagram" (mindmap or flowchart), "table", "chart", or "math" with concrete on-screen content.`;
+        warnings.push(`attempt ${attempt} (${modelId}): rejected callout (text-only slide)`);
+        continue;
+      }
       const check = validateVisual(normalized.visual);
       if (!check.ok) {
         lastError = check.reason;
