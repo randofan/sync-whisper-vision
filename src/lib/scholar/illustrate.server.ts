@@ -267,6 +267,62 @@ export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: s
   return { ok: true };
 }
 
+const MERMAID_DIAGRAM_GUIDE = `MERMAID DIAGRAM SKILL (read carefully — invalid mermaid is the #1 failure mode):
+
+1. HEADER (line 1, REQUIRED). Pick EXACTLY ONE and never combine syntaxes:
+   - "flowchart TD" or "flowchart LR" — boxes/arrows for processes, architectures, pipelines.
+   - "mindmap" — hierarchical "list of N things" topics.
+   - "sequenceDiagram" — actor-to-actor message timelines.
+   - "classDiagram" — class boxes with fields/methods + relationships.
+   - "stateDiagram-v2" — state transitions.
+
+2. SYNTAX IS PER-HEADER. Do NOT mix. Common failures we reject:
+   - Using "-->" inside a "mindmap" (mindmaps use INDENTATION ONLY, no arrows).
+   - Using "[Label]" boxes in mindmap children (use plain text or shape parens).
+   - Bare bracket starts like "[WP0]" without a node id before them.
+   - Unbalanced [ ], ( ), { } — every open bracket needs a close.
+   - Colons inside node labels: write "[Step A - detail]" not "[Step A: detail]".
+   - Quoted multi-word labels: use [Long label here] not [Long label, here]; if you need a comma or special char, wrap the whole label in double quotes: ["Long, fancy label"].
+
+3. FLOWCHART RULES:
+   - Every edge is "NodeId --> OtherId" or "NodeId -- label --> OtherId".
+   - Declare node text once with shape: A[Box], B((Circle)), C{Diamond}, D[/Parallelogram/]; then reference by id A, B, C, D in edges.
+   - Node ids are short ASCII (A, B, step1, wp0). Labels go inside the shape brackets.
+   - Example (COPY THIS SHAPE):
+     flowchart LR
+       A[User query] --> B{Cache hit?}
+       B -- yes --> C[Return cached]
+       B -- no --> D[Run model]
+       D --> E[(Store result)]
+       E --> C
+
+4. MINDMAP RULES (use for "summary", "contributions", "components", "list of N"):
+   - NO ARROWS. Hierarchy is INDENTATION (2 spaces per level).
+   - Root on its own line. Children indented under it. No "[ ]" required; if used, no colons inside.
+   - Example (COPY THIS SHAPE):
+     mindmap
+       root((Paper title))
+         Contribution 1
+           Detail A
+           Detail B
+         Contribution 2
+           Detail C
+         Contribution 3
+
+5. SEQUENCE EXAMPLE:
+   sequenceDiagram
+     participant U as User
+     participant S as Server
+     U->>S: request
+     S-->>U: response
+
+6. SELF-CHECK BEFORE EMITTING:
+   - Line 1 is exactly one header keyword.
+   - No "-->" anywhere if header is "mindmap".
+   - Every "[" has a matching "]"; every "(" has ")"; every "{" has "}".
+   - No ":" inside [ ] or (( )) labels.
+   - At least 4 substantive nodes/items.`;
+
 const SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
 
 KIND SELECTION (pick the first that fits, UNLESS the topic/hint explicitly requests a specific kind — then you MUST honor it):
