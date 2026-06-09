@@ -56,11 +56,18 @@ export function readAiProviderEnv(): AiProviderEnv {
  * not a deep-reasoning one.
  */
 export const GROQ_MODELS = {
-  // Fastest model. Used for visual generation where latency dominates.
+  // Fastest text model. Kept as legacy fallback for non-structured calls.
   fast: "llama-3.1-8b-instant",
-  // Stronger reasoning + tool calling for the research agent.
+  // Strong reasoning + tool calling.
   reasoning: "llama-3.3-70b-versatile",
+  // Strict structured outputs (constrained decoding). Used for visual generation
+  // so the schema is guaranteed and we stop wasting attempts on malformed JSON.
+  // Per https://console.groq.com/docs/structured-outputs only openai/gpt-oss-*
+  // support strict: true.
+  structured: "openai/gpt-oss-20b",
 } as const;
+
+export const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 /**
  * Legacy Lovable AI gateway provider. Kept for tests that mock generateText
