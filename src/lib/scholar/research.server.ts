@@ -1,7 +1,7 @@
 import { generateText, NoObjectGeneratedError, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import {
-  CLOUDFLARE_MODELS,
+  GROQ_MODELS,
   resolveAiProvider,
   type AiProviderEnv,
   type ResolvedAiProvider,
