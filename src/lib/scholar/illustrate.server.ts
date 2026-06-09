@@ -913,9 +913,9 @@ export async function generateVisual(
     : "";
 
   // FAST PATH: Groq strict structured outputs. Constrained decoding guarantees
-  // schema-valid JSON, so we don't burn 3-4 retries on malformed responses.
-  // If strict JSON is semantically invalid (for example, malformed Mermaid),
-  // return a deterministic visual instead of falling into the legacy retry loop.
+  // schema-valid JSON. If the result is semantically invalid (hedge language,
+  // prompt-like narration, malformed Mermaid), surface the error to the caller
+  // instead of substituting a deterministic visual.
   // Skipped if the caller injected a generateTextImpl (legacy test path) or
   // if there's no Groq key.
   if (resolved.source === "groq" && env.groqApiKey && !opts.generateTextImpl) {
@@ -928,14 +928,12 @@ export async function generateVisual(
         recentBlock,
       });
       if (containsHedgeLanguage(visual.narration)) {
-        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): hedge language; using deterministic fallback`);
-        return { visual: createFallbackVisual(input, kind), attempts: 1, warnings };
-      } else if (isPromptLikeVisualText(visual.narration)) {
-        warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): prompt-like narration; using deterministic fallback`);
-        return { visual: createFallbackVisual(input, kind), attempts: 1, warnings };
-      } else {
-        return { visual, attempts: 1, warnings };
+        throw new Error(`strict (${GROQ_MODELS.structured}/${kind}): hedge language detected in narration`);
       }
+      if (isPromptLikeVisualText(visual.narration)) {
+        throw new Error(`strict (${GROQ_MODELS.structured}/${kind}): prompt-like narration`);
+      }
+      return { visual, attempts: 1, warnings };
     } catch (err) {
       if (isBillingOrCreditError(err)) {
         throw new Error(
@@ -943,8 +941,7 @@ export async function generateVisual(
         );
       }
       const msg = err instanceof Error ? err.message : String(err);
-      warnings.push(`strict (${GROQ_MODELS.structured}/${kind}): ${msg}; using deterministic fallback`);
-      return { visual: createFallbackVisual(input, kind), attempts: 1, warnings };
+      throw new Error(`Failed to generate a valid visual via Groq strict mode (kind=${kind}): ${msg}`);
     }
   }
 
