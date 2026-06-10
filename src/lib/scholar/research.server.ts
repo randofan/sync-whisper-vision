@@ -66,19 +66,9 @@ export interface ResearchRunResult {
   toolCalls: number;
 }
 
-export function createFallbackResearch(input: ResearchInput): ResearchResult {
-  const excerpt = input.pdfExcerpt?.replace(/\s+/g, " ").trim();
-  const summary = excerpt
-    ? `Background research is temporarily unavailable, so this briefing is grounded in the uploaded paper excerpt. For "${input.query}", the relevant context is: ${excerpt.slice(0, 700)}`
-    : `Background research is temporarily unavailable. Use the uploaded paper as the primary source while answering this query: ${input.query}`;
-  return {
-    summary,
-    keyPoints: [
-      "External research generation is unavailable right now.",
-      "Continue from the uploaded paper context instead of blocking the conversation.",
-    ],
-  };
-}
+// Removed: createFallbackResearch fabricated stub briefings when Gemini failed,
+// pretending the research succeeded. We now let generateResearch throw and the
+// caller surfaces the failure honestly.
 
 function isBillingOrCreditError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
