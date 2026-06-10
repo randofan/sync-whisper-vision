@@ -714,8 +714,12 @@ CHART SHAPE (when kind=chart):
 export function pickStrictKind(input: IllustrateInput): StrictKind {
   const requested = detectRequestedKind(input);
   if (requested && requested !== "callout") return requested;
-  const inferred = inferFallbackKind(input);
-  return inferred === "callout" ? "diagram" : (inferred as StrictKind);
+  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  if (/\b(compare|comparison|versus|vs\.?|baseline|trade-?off|matrix)\b/i.test(text)) return "table";
+  if (/\b(architecture|pipeline|flow|process|component|tree|graph|topology|mindmap)\b/i.test(text)) return "diagram";
+  if (/\b(equation|formula|derivation|theorem|complexity)\b/i.test(text)) return "math";
+  if (/\b(trend|plot|chart|curve|histogram)\b/i.test(text)) return "chart";
+  return "diagram";
 }
 
 /** Call Groq's strict structured-output endpoint. Returns a validated Visual. */
