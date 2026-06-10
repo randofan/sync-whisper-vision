@@ -171,11 +171,10 @@ export async function generateResearch(
   const warnings: string[] = [];
   let lastError = "";
 
-  // Per the official @google/genai snippet, googleSearch grounding CAN be
-  // combined with responseMimeType + responseSchema. Use both so the model
-  // returns parseable JSON directly without prompt-based JSON discipline.
+  // Search grounding is DISABLED — it triggered aggressive Gemini rate limiting
+  // and contributed nothing the model couldn't already produce from training
+  // knowledge. Pure JSON response, no tool calls.
   const baseConfig: Record<string, unknown> = {
-    tools: [{ googleSearch: {} }],
     thinkingConfig: { thinkingLevel: "low" },
     responseMimeType: "application/json",
     responseSchema: RESPONSE_SCHEMA,
@@ -189,7 +188,7 @@ export async function generateResearch(
       : "";
     const userText = `Research query: ${input.query}
 ${input.pdfExcerpt ? `\nThe user is reading this paper (excerpt):\n${input.pdfExcerpt.slice(0, 3500)}\n` : ""}
-Investigate using Google Search, then return a JSON object matching the schema (summary + keyPoints). No URLs or citations in the values.${correction}`;
+Return a JSON object matching the schema (summary + keyPoints). No URLs or citations in the values.${correction}`;
 
     try {
       const { text } = await generateContent({
