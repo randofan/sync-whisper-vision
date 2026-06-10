@@ -45,14 +45,13 @@ export function normalizeResearch(
 
 const SYNTHESIS_SYSTEM = `You are a deep-research librarian feeding factual grounding to a live voice agent.
 
-Use exactly one Google Search grounding pass to verify facts, find primary sources, and synthesize the findings. Keep the request narrow and do not fan out into multiple independent research passes.
+Synthesize from your training knowledge — you do NOT have web search available on this call. Be confident and concrete; do not hedge about lack of information.
 
 Final output rules (strict):
 - Return a single JSON object matching the schema: {"summary": string, "keyPoints": string[]}.
-- "summary" is REQUIRED and non-empty: 4-8 dense sentences synthesizing what you actually verified from search. Mention concrete techniques, prior work names, numbers, or definitions. NO URLs, NO markdown link syntax, NO citation markers like [1] or (Smith 2024). The voice agent will speak this aloud.
+- "summary" is REQUIRED and non-empty: 4-8 dense sentences. Mention concrete techniques, prior work names, numbers, or definitions. NO URLs, NO markdown link syntax, NO citation markers like [1] or (Smith 2024). The voice agent will speak this aloud.
 - "keyPoints": 3-7 short factual bullets, same constraints (no URLs, no link syntax, no citations).
-- Do not output a bibliography — the voice agent doesn't need it. The briefing must read as confident grounded knowledge.
-- If search returned nothing useful, STILL produce a best-effort grounded summary from your training knowledge. Never return an empty summary.`;
+- Do not output a bibliography. The briefing must read as confident grounded knowledge.`;
 
 export interface ResearchInput {
   query: string;
@@ -63,26 +62,13 @@ export interface ResearchRunResult {
   result: ResearchResult;
   attempts: number;
   warnings: string[];
-  /**
-   * Kept for API compatibility with the previous tool-using implementation.
-   * Gemini's googleSearch grounding is opaque, so this is always 0.
-   */
+  /** Kept for API compatibility; always 0 now that search grounding is disabled. */
   toolCalls: number;
 }
 
-export function createFallbackResearch(input: ResearchInput): ResearchResult {
-  const excerpt = input.pdfExcerpt?.replace(/\s+/g, " ").trim();
-  const summary = excerpt
-    ? `Background research is temporarily unavailable, so this briefing is grounded in the uploaded paper excerpt. For "${input.query}", the relevant context is: ${excerpt.slice(0, 700)}`
-    : `Background research is temporarily unavailable. Use the uploaded paper as the primary source while answering this query: ${input.query}`;
-  return {
-    summary,
-    keyPoints: [
-      "External research generation is unavailable right now.",
-      "Continue from the uploaded paper context instead of blocking the conversation.",
-    ],
-  };
-}
+// Removed: createFallbackResearch fabricated stub briefings when Gemini failed,
+// pretending the research succeeded. We now let generateResearch throw and the
+// caller surfaces the failure honestly.
 
 function isBillingOrCreditError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
@@ -175,11 +161,10 @@ export async function generateResearch(
   const warnings: string[] = [];
   let lastError = "";
 
-  // Per the official @google/genai snippet, googleSearch grounding CAN be
-  // combined with responseMimeType + responseSchema. Use both so the model
-  // returns parseable JSON directly without prompt-based JSON discipline.
+  // Search grounding is DISABLED — it triggered aggressive Gemini rate limiting
+  // and contributed nothing the model couldn't already produce from training
+  // knowledge. Pure JSON response, no tool calls.
   const baseConfig: Record<string, unknown> = {
-    tools: [{ googleSearch: {} }],
     thinkingConfig: { thinkingLevel: "low" },
     responseMimeType: "application/json",
     responseSchema: RESPONSE_SCHEMA,
@@ -193,7 +178,7 @@ export async function generateResearch(
       : "";
     const userText = `Research query: ${input.query}
 ${input.pdfExcerpt ? `\nThe user is reading this paper (excerpt):\n${input.pdfExcerpt.slice(0, 3500)}\n` : ""}
-Investigate using Google Search, then return a JSON object matching the schema (summary + keyPoints). No URLs or citations in the values.${correction}`;
+Return a JSON object matching the schema (summary + keyPoints). No URLs or citations in the values.${correction}`;
 
     try {
       const { text } = await generateContent({

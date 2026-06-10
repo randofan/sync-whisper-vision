@@ -284,68 +284,133 @@ export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: s
   return { ok: true };
 }
 
-const MERMAID_DIAGRAM_GUIDE = `MERMAID DIAGRAM SKILL (read carefully — invalid mermaid is the #1 failure mode):
+const MERMAID_DIAGRAM_GUIDE = `MERMAID DIAGRAM SKILL — invalid mermaid is the #1 failure mode. Read every rule. Self-check before emitting.
 
-1. HEADER (line 1, REQUIRED). Pick EXACTLY ONE and never combine syntaxes:
-   - "flowchart TD" or "flowchart LR" — boxes/arrows for processes, architectures, pipelines.
-   - "mindmap" — hierarchical "list of N things" topics.
-   - "sequenceDiagram" — actor-to-actor message timelines.
-   - "classDiagram" — class boxes with fields/methods + relationships.
-   - "stateDiagram-v2" — state transitions.
+================================================================
+A. GLOBAL RULES (apply to ALL diagram types)
+================================================================
+A1. Line 1 must be EXACTLY one diagram header keyword and nothing else (optionally followed by direction for flowchart). No prose, no markdown fence, no "diagram:" prefix.
+A2. NEVER mix syntaxes from different diagram types in one source. A "mindmap" file uses mindmap syntax only; a "flowchart" file uses flowchart syntax only; etc.
+A3. Balance every bracket pair: every [ has a ], every ( has a ), every { has a }, every (( has a )), every {{ has a }}.
+A4. NEVER put ':' inside a node label. Use ' - ' or ' — ' instead. (Colons are syntactically reserved in many diagram types.)
+A5. NEVER put commas, parentheses, or quotes inside an unquoted label. If you need them, wrap the WHOLE label in double quotes: A["Throughput (Gbps), measured"].
+A6. Node IDs are short ASCII identifiers ([A-Za-z][A-Za-z0-9_]*). Labels go inside the shape brackets, not inline as bare text.
+A7. One statement per line. Do NOT chain multiple edges on one line separated by spaces (e.g. "A --> B  B --> C" is INVALID — put each on its own line).
+A8. Emit at least 4 substantive nodes/items; never a 2-node toy diagram.
+A9. No emojis, no HTML tags, no markdown inside labels.
 
-2. SYNTAX IS PER-HEADER. Do NOT mix. Common failures we reject:
-   - Using "-->" inside a "mindmap" (mindmaps use INDENTATION ONLY, no arrows).
-   - Using "[Label]" boxes in mindmap children (use plain text or shape parens).
-   - Bare bracket starts like "[WP0]" without a node id before them.
-   - Unbalanced [ ], ( ), { } — every open bracket needs a close.
-   - Colons inside node labels: write "[Step A - detail]" not "[Step A: detail]".
-   - Quoted multi-word labels: use [Long label here] not [Long label, here]; if you need a comma or special char, wrap the whole label in double quotes: ["Long, fancy label"].
+================================================================
+B. flowchart  (use for: processes, architectures, pipelines, decision flows)
+================================================================
+Header: "flowchart TD" (top-down) or "flowchart LR" (left-right).
 
-3. FLOWCHART RULES:
-   - Every edge is "NodeId --> OtherId" or "NodeId -- label --> OtherId".
-   - Declare node text once with shape: A[Box], B((Circle)), C{Diamond}, D[/Parallelogram/]; then reference by id A, B, C, D in edges.
-   - Node ids are short ASCII (A, B, step1, wp0). Labels go inside the shape brackets.
-   - Example (COPY THIS SHAPE):
-     flowchart LR
-       A[User query] --> B{Cache hit?}
-       B -- yes --> C[Return cached]
-       B -- no --> D[Run model]
-       D --> E[(Store result)]
-       E --> C
+Edge syntax:
+  A --> B                  // plain edge
+  A -- "label" --> B        // labeled edge (quote multi-word labels)
+  A -.-> B                  // dotted edge
+  A ==> B                   // thick edge
 
-4. MINDMAP RULES (use for "summary", "contributions", "components", "list of N"):
-   - NO ARROWS. Hierarchy is INDENTATION (2 spaces per level).
-   - Root on its own line. Children indented under it. No "[ ]" required; if used, no colons inside.
-   - Example (COPY THIS SHAPE):
-     mindmap
-       root((Paper title))
-         Contribution 1
-           Detail A
-           Detail B
-         Contribution 2
-           Detail C
-         Contribution 3
+Node shapes (declare label once, then reference by ID):
+  A[Rectangle]
+  B(Rounded)
+  C((Circle))
+  D{Diamond}
+  E[/Parallelogram/]
+  F[(Cylinder)]
 
-5. SEQUENCE EXAMPLE:
-   sequenceDiagram
-     participant U as User
-     participant S as Server
-     U->>S: request
-     S-->>U: response
+CORRECT EXAMPLE — COPY THIS SHAPE:
+  flowchart LR
+    Q[User query] --> R{Cache hit?}
+    R -- yes --> C[Return cached]
+    R -- no --> M[Run model]
+    M --> S[(Store result)]
+    S --> C
 
-6. SELF-CHECK BEFORE EMITTING:
-   - Line 1 is exactly one header keyword.
-   - No "-->" anywhere if header is "mindmap".
-   - Every "[" has a matching "]"; every "(" has ")"; every "{" has "}".
-   - No ":" inside [ ] or (( )) labels.
-   - At least 4 substantive nodes/items.`;
+WRONG examples to avoid:
+  [WP0] --> [WP1]                       // bare brackets, no node IDs
+  A --> B  B --> C                      // two edges on one line
+  A[Step: detail] --> B                 // colon inside label
+  flowchart LR\\n  A((R1)) A -- B  A -- C  // chained edges, no -->
+
+================================================================
+C. mindmap  (use for: hierarchies, "list of N things", taxonomies, contribution maps)
+================================================================
+Header: "mindmap" (no direction).
+
+Rules:
+  - Hierarchy is INDENTATION ONLY (2 spaces per level). NEVER use --> arrows.
+  - Root on its own line; can use shape: root((Title)) or root[Title] or plain text.
+  - Children are plain text, indented under their parent. No [labels] required.
+  - Do NOT chain children on one line.
+
+CORRECT EXAMPLE — COPY THIS SHAPE:
+  mindmap
+    root((Paper title))
+      Contribution 1
+        Detail A
+        Detail B
+      Contribution 2
+        Detail C
+      Contribution 3
+        Detail D
+        Detail E
+
+WRONG examples to avoid:
+  mindmap\\n  root((R)) A --> B          // arrows are forbidden in mindmap
+  mindmap\\n  root((R5))  A -- B  A -- C // chained siblings + edge syntax (this is the exact bug we keep hitting)
+  mindmap\\n  root\\n    [Child: thing]  // colon inside label
+
+================================================================
+D. sequenceDiagram  (use for: actor-to-actor message timelines)
+================================================================
+Header: "sequenceDiagram"
+
+  sequenceDiagram
+    participant U as User
+    participant S as Server
+    U->>S: request payload
+    S-->>U: response payload
+    Note over U,S: Optional annotation
+
+Arrows: ->> (solid), -->> (dashed), -x (with cross).
+
+================================================================
+E. classDiagram
+================================================================
+  classDiagram
+    class Node {
+      +id: string
+      +children: Node[]
+      +visit() void
+    }
+    Node "1" --> "*" Node : children
+
+================================================================
+F. stateDiagram-v2
+================================================================
+  stateDiagram-v2
+    [*] --> Idle
+    Idle --> Running : start
+    Running --> Idle : stop
+    Running --> [*] : crash
+
+================================================================
+G. SELF-CHECK (run mentally before returning the mermaid string)
+================================================================
+1. Is line 1 exactly one valid header keyword?
+2. If header is "mindmap": are there ZERO occurrences of "-->" or "--" edges?
+3. Does every "[" have a matching "]"? Every "("? Every "{"?
+4. Is every ":" outside of bracketed labels (only allowed in sequenceDiagram messages, classDiagram relations, and stateDiagram transitions)?
+5. Is every edge / child on its own line?
+6. Are there at least 4 substantive nodes?
+If any answer is no, FIX IT before emitting.`;
 
 const SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
 
 KIND SELECTION (pick the first that fits, UNLESS the topic/hint explicitly requests a specific kind — then you MUST honor it):
 1. "diagram" — processes, architectures, pipelines, relationships, taxonomies, contribution maps. Lists of contributions/components/steps render as mermaid mindmap/flowchart, NOT a callout.
 2. "table" — comparisons, parameters, ablations, datasets, baselines. Prefer 3-6 columns and 3-8 rows of substantive content.
-3. "chart" — quantitative trends/comparisons. Include 8-15 realistic illustrative data points; mark them illustrative in the narration if inferred.
+3. "chart" — quantitative trends/comparisons. Include 8-15 realistic illustrative data points; mark them illustrative in the narration if inferred. ALWAYS populate xLabel and yLabel with descriptive axis labels including units (e.g. "Sequence length (tokens)", "Latency (ms)") — never leave axes unlabeled or generic.
 4. "math" — formulas, losses, derivations, complexity, mathematical definitions. Each step is a KaTeX string (no $ delimiters).
 5. "callout" — FORBIDDEN. Never return kind="callout". Slides must always contain a real visual asset (diagram, chart, table, or equations). If the topic only suggests a quote or one-line takeaway, promote it to a diagram (mindmap or flowchart) or table that decomposes the idea into concrete parts.
 
@@ -429,161 +494,13 @@ export function detectRequestedKind(input: IllustrateInput): Visual["kind"] | nu
   return null;
 }
 
-export function createFallbackCalloutVisual(input: IllustrateInput): Visual {
-  const hint = input.hint?.replace(/\bcallout\b:?/gi, "").replace(/\s+/g, " ").trim();
-  const body = (hint && !GENERIC_VISUAL_HINT_RE.test(hint) ? hint : input.topic || "Key takeaway").slice(0, 320);
-  return {
-    title: input.topic || "Key takeaway",
-    narration: body,
-    kind: "callout",
-    callout: { body, tone: "key" },
-  };
-}
-
-function inferFallbackKind(input: IllustrateInput): Visual["kind"] {
-  const requested = detectRequestedKind(input);
-  if (requested) return requested;
-  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
-  if (/\b(compare|comparison|versus|vs\.?|cost|performance|throughput|oversubscription|baseline|trade-?off)\b/i.test(text)) return "table";
-  if (/\b(problem|solution|challenge|contribution|innovation|component|summary|summariz\w*|core|architecture|routing|cabling)\b/i.test(text)) return "diagram";
-  return "table";
-}
-
-function titleFor(input: IllustrateInput, suffix?: string) {
-  const base = (input.topic || suffix || "Generated visual").replace(/\s+/g, " ").trim();
-  return base.length <= 60 ? base : `${base.slice(0, 57).trim()}…`;
-}
-
-function hasRngContext(input: IllustrateInput) {
-  return /\bRNG\b|fat\s*tree|Spraypoint|ShuffleBox|expander/i.test(
-    `${input.topic ?? ""} ${input.hint ?? ""} ${input.pdfExcerpt ?? ""}`,
-  );
-}
-
-function createFallbackTableVisual(input: IllustrateInput): Visual {
-  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
-  const rng = hasRngContext(input);
-  const comparison = /\b(compare|comparison|versus|vs\.?|fat\s*tree|baseline|cost|throughput|performance)\b/i.test(text);
-  if (rng && comparison) {
-    return {
-      title: titleFor(input, "RNG vs Fat Tree"),
-      narration: "Rows contrast cost, throughput, routing, and capacity fungibility.",
-      kind: "table",
-      table: {
-        columns: ["Aspect", "RNG / flat expander", "Fat tree baseline"],
-        rows: [
-          ["Cost", "9–45% lower at equivalent oversubscription", "Higher cost to avoid congestion"],
-          ["Throughput", "Matches or exceeds fat trees across traffic patterns", "Can strand capacity across hierarchical cuts"],
-          ["Routing", "Spraypoint finds many near edge-disjoint paths", "Shortest paths use a small subset of links"],
-          ["Cabling", "ShuffleBox keeps location-pair complexity similar", "Regular hierarchy but less capacity fungibility"],
-          ["Failure impact", "Small blast radius in flat topology", "Upper-layer failures affect many endpoints"],
-        ],
-      },
-    };
-  }
-
-  return {
-    title: titleFor(input, "Problem / solution map"),
-    narration: "Rows connect each scaling bottleneck to the proposed mechanism.",
-    kind: "table",
-    table: {
-      columns: ["Bottleneck", "Why it matters", "Mechanism to inspect"],
-      rows: rng
-        ? [
-            ["Capacity fungibility", "Fat-tree cuts strand idle links", "Flat expander cuts expose more bandwidth"],
-            ["Routing scale", "k-shortest paths need too much switch memory", "Spraypoint distributes across many paths"],
-            ["Cabling complexity", "Random long links are hard to operate", "ShuffleBox shuffles passively at planned sites"],
-            ["Predictability", "Parameter search is combinatorial", "Models estimate path length and oversubscription"],
-          ]
-        : [
-            ["Core claim", input.topic || "Topic", "Turn the claim into measurable rows"],
-            ["Evidence", input.hint || "Paper-grounded details", "Compare against the baseline"],
-            ["Mechanism", "How the method changes behavior", "Show components or equations next"],
-          ],
-    },
-  };
-}
-
-function createFallbackDiagramVisual(input: IllustrateInput): Visual {
-  const rng = hasRngContext(input);
-  const mermaid = rng
-    ? `flowchart LR
-  P[Fat-tree bottleneck] --> C[Capacity stranded at small cuts]
-  C --> E[Flat expander topology]
-  E --> S[Spraypoint: many edge-disjoint paths]
-  E --> B[ShuffleBox: manageable cabling]
-  S --> T[Higher throughput]
-  B --> K[Lower cost]`
-    : `flowchart LR
-  A[Problem] --> B[Mechanism]
-  B --> C[Observable effect]
-  C --> D[Evidence to compare]
-  D --> E[Takeaway]`;
-  return {
-    title: titleFor(input, "Mechanism diagram"),
-    narration: rng
-      ? "The flow links stranded capacity to expander routing, cabling, throughput, and cost."
-      : "The flow separates problem, mechanism, effect, evidence, and takeaway.",
-    kind: "diagram",
-    diagram: { mermaid },
-  };
-}
-
-function createFallbackMathVisual(input: IllustrateInput): Visual {
-  const expander = /expander|edge expansion|graph|RNG/i.test(`${input.topic ?? ""} ${input.hint ?? ""}`);
-  return {
-    title: titleFor(input, expander ? "Edge expansion formalism" : "Canonical formalism"),
-    narration: expander
-      ? "The equations define expansion as boundary capacity over subset size."
-      : "The equations provide a canonical symbolic frame for the requested concept.",
-    kind: "math",
-    math: {
-      inline: expander ? "For a graph G=(V,E), every small node set should have a large outgoing cut." : undefined,
-      steps: expander
-        ? [
-            "G=(V,E),\\quad S\\subset V,\\quad 0<|S|\\le |V|/2",
-            "\\partial S = \\{(u,v)\\in E: u\\in S,\\ v\\notin S\\}",
-            "h(G)=\\min_{0<|S|\\le |V|/2}\\frac{|\\partial S|}{|S|}",
-            "\\text{large }h(G)\\Rightarrow\\text{large cut bandwidth and capacity fungibility}",
-          ]
-        : [
-            "\\text{objective}=\\text{signal}-\\text{cost}",
-            "\\Delta=\\text{method outcome}-\\text{baseline outcome}",
-            "\\text{gain}=\\frac{\\Delta}{\\text{baseline outcome}}",
-          ],
-    },
-  };
-}
-
-function createFallbackChartVisual(input: IllustrateInput): Visual {
-  return {
-    title: titleFor(input, "Illustrative performance comparison"),
-    narration: "Illustrative bars encode the paper’s reported cost and throughput direction.",
-    kind: "chart",
-    chart: {
-      chartType: "bar",
-      xKey: "metric",
-      yKeys: ["RNG", "Fat tree"],
-      xLabel: "Metric",
-      yLabel: "Relative index",
-      data: [
-        { metric: "Cost efficiency", RNG: 145, "Fat tree": 100 },
-        { metric: "Throughput", RNG: 115, "Fat tree": 100 },
-        { metric: "Capacity use", RNG: 125, "Fat tree": 100 },
-      ],
-    },
-  };
-}
-
-export function createFallbackVisual(input: IllustrateInput, forcedKind?: Visual["kind"]): Visual {
-  let kind = forcedKind ?? inferFallbackKind(input);
-  // Never produce text-only slides — promote callouts to a real visual.
-  if (kind === "callout") kind = "diagram";
-  if (kind === "math") return createFallbackMathVisual(input);
-  if (kind === "diagram") return createFallbackDiagramVisual(input);
-  if (kind === "chart") return createFallbackChartVisual(input);
-  return createFallbackTableVisual(input);
-}
+// NOTE: Previous revisions defined `createFallbackVisual` / `hasRngContext` and
+// returned hard-coded RNG / fat-tree / expander slides whenever the upstream
+// model failed. That violated the "no hard-coded API workarounds" rule — it
+// looked like the model was answering, when really we were serving canned
+// content from regex matches on the prompt. The entire fallback family has
+// been removed. If generation fails, `generateVisual` throws and the caller
+// surfaces the error.
 
 export function isBillingOrCreditError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
@@ -663,8 +580,8 @@ const STRICT_KIND_SCHEMAS: Record<StrictKind, Record<string, unknown>> = {
       title: { type: "string" },
       narration: { type: "string" },
       chartType: { type: "string", enum: ["line", "bar", "area", "scatter"] },
-      xLabel: { type: "string" },
-      yLabel: { type: "string" },
+      xLabel: { type: "string", description: "REQUIRED non-empty descriptive x-axis label, ideally with units, e.g. 'Sequence length (tokens)'. NEVER empty, NEVER 'X' or 'value'." },
+      yLabel: { type: "string", description: "REQUIRED non-empty descriptive y-axis label, ideally with units, e.g. 'Latency (ms)'. NEVER empty, NEVER 'Y' or 'value'." },
       series: {
         type: "array",
         description: "One entry per data series",
@@ -788,14 +705,21 @@ TABLE SHAPE (when kind=table): 3-6 columns, 3-8 rows of substantive content. Eve
 
 MATH SHAPE (when kind=math): each step is a KaTeX string (no $ delimiters). Use \\frac, \\sum, etc.
 
-CHART SHAPE (when kind=chart): 8-15 realistic illustrative points per series.`;
+CHART SHAPE (when kind=chart):
+- 8-15 realistic illustrative points per series.
+- "xLabel" and "yLabel" are MANDATORY, non-empty, descriptive strings (e.g. "Sequence length (tokens)", "Latency (ms)"). NEVER leave them blank, NEVER use generic placeholders like "X" or "Y" or "value". Include units when applicable.
+- The chart MUST be readable as a standalone figure: a viewer should understand what each axis measures from the labels alone.`;
 
 /** Pick the concrete kind to ask the strict-output model for. Never callout. */
 export function pickStrictKind(input: IllustrateInput): StrictKind {
   const requested = detectRequestedKind(input);
   if (requested && requested !== "callout") return requested;
-  const inferred = inferFallbackKind(input);
-  return inferred === "callout" ? "diagram" : (inferred as StrictKind);
+  const text = `${input.topic ?? ""} ${input.hint ?? ""}`;
+  if (/\b(compare|comparison|versus|vs\.?|baseline|trade-?off|matrix)\b/i.test(text)) return "table";
+  if (/\b(architecture|pipeline|flow|process|component|tree|graph|topology|mindmap)\b/i.test(text)) return "diagram";
+  if (/\b(equation|formula|derivation|theorem|complexity)\b/i.test(text)) return "math";
+  if (/\b(trend|plot|chart|curve|histogram)\b/i.test(text)) return "chart";
+  return "diagram";
 }
 
 /** Call Groq's strict structured-output endpoint. Returns a validated Visual. */
@@ -865,6 +789,14 @@ Produce the JSON object for this kind with concrete, information-dense content.`
   const check = validateVisual(visual);
   if (!check.ok) {
     throw new Error(`Strict visual failed downstream validation: ${check.reason}`);
+  }
+  if (visual.kind === "chart") {
+    const bad = (s?: string) => !s || !s.trim() || /^(x|y|value|label|axis|tbd|n\/a)$/i.test(s.trim());
+    if (bad(visual.chart?.xLabel) || bad(visual.chart?.yLabel)) {
+      throw new Error(
+        `Strict chart missing descriptive axis labels (xLabel=${JSON.stringify(visual.chart?.xLabel)}, yLabel=${JSON.stringify(visual.chart?.yLabel)})`,
+      );
+    }
   }
   return visual;
 }

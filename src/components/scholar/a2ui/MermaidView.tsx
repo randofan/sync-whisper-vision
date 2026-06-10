@@ -38,10 +38,12 @@ export function MermaidView({ source, theme = "linearLight" }: Props) {
         const { svg } = await mermaid.render(idRef.current, source);
         if (!cancelled && ref.current) ref.current.innerHTML = svg;
       } catch (err) {
-        if (!cancelled && ref.current) {
-          ref.current.innerHTML = `<pre class="text-xs text-destructive p-2">${
-            err instanceof Error ? err.message : "diagram render failed"
-          }</pre>`;
+        // Swallow render failures silently — surfacing a giant red
+        // "Syntax error / mermaid version 11.15.0" blob in the canvas is
+        // worse than rendering nothing. Log to console for debugging.
+        if (!cancelled && ref.current) ref.current.innerHTML = "";
+        if (typeof console !== "undefined") {
+          console.warn("mermaid render failed", err instanceof Error ? err.message : err);
         }
       }
     });

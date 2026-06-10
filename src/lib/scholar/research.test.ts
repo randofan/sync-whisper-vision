@@ -53,15 +53,11 @@ describe("generateResearch failure surfacing", () => {
 
     expect(result.attempts).toBe(1);
     expect(generateContentImpl).toHaveBeenCalledTimes(1);
-    expect(generateContentImpl).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: "gemini-3.1-flash-lite",
-        config: expect.objectContaining({
-          tools: [{ googleSearch: {} }],
-          thinkingConfig: { thinkingLevel: "low" },
-        }),
-      }),
-    );
+    const call = generateContentImpl.mock.calls[0][0];
+    expect(call.model).toBe("gemini-3.1-flash-lite");
+    expect(call.config.thinkingConfig).toEqual({ thinkingLevel: "low" });
+    // Search grounding is intentionally disabled (rate-limit avoidance).
+    expect(call.config.tools).toBeUndefined();
     expect(_internals.GEMINI_MODELS).toEqual(["gemini-3.1-flash-lite"]);
   });
 

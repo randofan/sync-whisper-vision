@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   containsHedgeLanguage,
-  createFallbackVisual,
   detectRequestedKind,
   generateVisual,
   isPromptLikeVisualText,
@@ -272,18 +271,8 @@ describe("prompt-like visual text guardrails", () => {
     ).toBeNull();
   });
 
-  it("createFallbackVisual still builds a structured table for the RNG regression", () => {
-    const visual = createFallbackVisual({
-      topic: "RNG vs. Fat Tree Performance Comparison",
-      hint: "A table comparing RNG and Fat Tree topologies based on cost, performance, and throughput for equivalent oversubscription ratios.",
-      pdfExcerpt: "RNG topologies are 9–45% cheaper than fat trees and offer higher throughput.",
-    });
-
-    expect(visual.kind).toBe("table");
-    expect(visual.table?.rows.length).toBeGreaterThanOrEqual(4);
-    expect(isPromptLikeVisualText(visual.narration)).toBe(false);
-    expect(validateVisual(visual)).toEqual({ ok: true });
-  });
+  // Removed: deterministic fallback visuals were eliminated; generation now
+  // throws on failure rather than serving hard-coded RNG/Fat-tree content.
 });
 
 describe("generateVisual — kind enforcement, recentVisuals, research-triggering hints", () => {
