@@ -728,8 +728,8 @@ const STRICT_KIND_SCHEMAS: Record<StrictKind, Record<string, unknown>> = {
       title: { type: "string" },
       narration: { type: "string" },
       chartType: { type: "string", enum: ["line", "bar", "area", "scatter"] },
-      xLabel: { type: "string" },
-      yLabel: { type: "string" },
+      xLabel: { type: "string", description: "REQUIRED non-empty descriptive x-axis label, ideally with units, e.g. 'Sequence length (tokens)'. NEVER empty, NEVER 'X' or 'value'." },
+      yLabel: { type: "string", description: "REQUIRED non-empty descriptive y-axis label, ideally with units, e.g. 'Latency (ms)'. NEVER empty, NEVER 'Y' or 'value'." },
       series: {
         type: "array",
         description: "One entry per data series",
