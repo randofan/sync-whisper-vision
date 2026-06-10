@@ -284,61 +284,126 @@ export function validateVisual(v: Visual): { ok: true } | { ok: false; reason: s
   return { ok: true };
 }
 
-const MERMAID_DIAGRAM_GUIDE = `MERMAID DIAGRAM SKILL (read carefully — invalid mermaid is the #1 failure mode):
+const MERMAID_DIAGRAM_GUIDE = `MERMAID DIAGRAM SKILL — invalid mermaid is the #1 failure mode. Read every rule. Self-check before emitting.
 
-1. HEADER (line 1, REQUIRED). Pick EXACTLY ONE and never combine syntaxes:
-   - "flowchart TD" or "flowchart LR" — boxes/arrows for processes, architectures, pipelines.
-   - "mindmap" — hierarchical "list of N things" topics.
-   - "sequenceDiagram" — actor-to-actor message timelines.
-   - "classDiagram" — class boxes with fields/methods + relationships.
-   - "stateDiagram-v2" — state transitions.
+================================================================
+A. GLOBAL RULES (apply to ALL diagram types)
+================================================================
+A1. Line 1 must be EXACTLY one diagram header keyword and nothing else (optionally followed by direction for flowchart). No prose, no markdown fence, no "diagram:" prefix.
+A2. NEVER mix syntaxes from different diagram types in one source. A "mindmap" file uses mindmap syntax only; a "flowchart" file uses flowchart syntax only; etc.
+A3. Balance every bracket pair: every [ has a ], every ( has a ), every { has a }, every (( has a )), every {{ has a }}.
+A4. NEVER put ':' inside a node label. Use ' - ' or ' — ' instead. (Colons are syntactically reserved in many diagram types.)
+A5. NEVER put commas, parentheses, or quotes inside an unquoted label. If you need them, wrap the WHOLE label in double quotes: A["Throughput (Gbps), measured"].
+A6. Node IDs are short ASCII identifiers ([A-Za-z][A-Za-z0-9_]*). Labels go inside the shape brackets, not inline as bare text.
+A7. One statement per line. Do NOT chain multiple edges on one line separated by spaces (e.g. "A --> B  B --> C" is INVALID — put each on its own line).
+A8. Emit at least 4 substantive nodes/items; never a 2-node toy diagram.
+A9. No emojis, no HTML tags, no markdown inside labels.
 
-2. SYNTAX IS PER-HEADER. Do NOT mix. Common failures we reject:
-   - Using "-->" inside a "mindmap" (mindmaps use INDENTATION ONLY, no arrows).
-   - Using "[Label]" boxes in mindmap children (use plain text or shape parens).
-   - Bare bracket starts like "[WP0]" without a node id before them.
-   - Unbalanced [ ], ( ), { } — every open bracket needs a close.
-   - Colons inside node labels: write "[Step A - detail]" not "[Step A: detail]".
-   - Quoted multi-word labels: use [Long label here] not [Long label, here]; if you need a comma or special char, wrap the whole label in double quotes: ["Long, fancy label"].
+================================================================
+B. flowchart  (use for: processes, architectures, pipelines, decision flows)
+================================================================
+Header: "flowchart TD" (top-down) or "flowchart LR" (left-right).
 
-3. FLOWCHART RULES:
-   - Every edge is "NodeId --> OtherId" or "NodeId -- label --> OtherId".
-   - Declare node text once with shape: A[Box], B((Circle)), C{Diamond}, D[/Parallelogram/]; then reference by id A, B, C, D in edges.
-   - Node ids are short ASCII (A, B, step1, wp0). Labels go inside the shape brackets.
-   - Example (COPY THIS SHAPE):
-     flowchart LR
-       A[User query] --> B{Cache hit?}
-       B -- yes --> C[Return cached]
-       B -- no --> D[Run model]
-       D --> E[(Store result)]
-       E --> C
+Edge syntax:
+  A --> B                  // plain edge
+  A -- "label" --> B        // labeled edge (quote multi-word labels)
+  A -.-> B                  // dotted edge
+  A ==> B                   // thick edge
 
-4. MINDMAP RULES (use for "summary", "contributions", "components", "list of N"):
-   - NO ARROWS. Hierarchy is INDENTATION (2 spaces per level).
-   - Root on its own line. Children indented under it. No "[ ]" required; if used, no colons inside.
-   - Example (COPY THIS SHAPE):
-     mindmap
-       root((Paper title))
-         Contribution 1
-           Detail A
-           Detail B
-         Contribution 2
-           Detail C
-         Contribution 3
+Node shapes (declare label once, then reference by ID):
+  A[Rectangle]
+  B(Rounded)
+  C((Circle))
+  D{Diamond}
+  E[/Parallelogram/]
+  F[(Cylinder)]
 
-5. SEQUENCE EXAMPLE:
-   sequenceDiagram
-     participant U as User
-     participant S as Server
-     U->>S: request
-     S-->>U: response
+CORRECT EXAMPLE — COPY THIS SHAPE:
+  flowchart LR
+    Q[User query] --> R{Cache hit?}
+    R -- yes --> C[Return cached]
+    R -- no --> M[Run model]
+    M --> S[(Store result)]
+    S --> C
 
-6. SELF-CHECK BEFORE EMITTING:
-   - Line 1 is exactly one header keyword.
-   - No "-->" anywhere if header is "mindmap".
-   - Every "[" has a matching "]"; every "(" has ")"; every "{" has "}".
-   - No ":" inside [ ] or (( )) labels.
-   - At least 4 substantive nodes/items.`;
+WRONG examples to avoid:
+  [WP0] --> [WP1]                       // bare brackets, no node IDs
+  A --> B  B --> C                      // two edges on one line
+  A[Step: detail] --> B                 // colon inside label
+  flowchart LR\\n  A((R1)) A -- B  A -- C  // chained edges, no -->
+
+================================================================
+C. mindmap  (use for: hierarchies, "list of N things", taxonomies, contribution maps)
+================================================================
+Header: "mindmap" (no direction).
+
+Rules:
+  - Hierarchy is INDENTATION ONLY (2 spaces per level). NEVER use --> arrows.
+  - Root on its own line; can use shape: root((Title)) or root[Title] or plain text.
+  - Children are plain text, indented under their parent. No [labels] required.
+  - Do NOT chain children on one line.
+
+CORRECT EXAMPLE — COPY THIS SHAPE:
+  mindmap
+    root((Paper title))
+      Contribution 1
+        Detail A
+        Detail B
+      Contribution 2
+        Detail C
+      Contribution 3
+        Detail D
+        Detail E
+
+WRONG examples to avoid:
+  mindmap\\n  root((R)) A --> B          // arrows are forbidden in mindmap
+  mindmap\\n  root((R5))  A -- B  A -- C // chained siblings + edge syntax (this is the exact bug we keep hitting)
+  mindmap\\n  root\\n    [Child: thing]  // colon inside label
+
+================================================================
+D. sequenceDiagram  (use for: actor-to-actor message timelines)
+================================================================
+Header: "sequenceDiagram"
+
+  sequenceDiagram
+    participant U as User
+    participant S as Server
+    U->>S: request payload
+    S-->>U: response payload
+    Note over U,S: Optional annotation
+
+Arrows: ->> (solid), -->> (dashed), -x (with cross).
+
+================================================================
+E. classDiagram
+================================================================
+  classDiagram
+    class Node {
+      +id: string
+      +children: Node[]
+      +visit() void
+    }
+    Node "1" --> "*" Node : children
+
+================================================================
+F. stateDiagram-v2
+================================================================
+  stateDiagram-v2
+    [*] --> Idle
+    Idle --> Running : start
+    Running --> Idle : stop
+    Running --> [*] : crash
+
+================================================================
+G. SELF-CHECK (run mentally before returning the mermaid string)
+================================================================
+1. Is line 1 exactly one valid header keyword?
+2. If header is "mindmap": are there ZERO occurrences of "-->" or "--" edges?
+3. Does every "[" have a matching "]"? Every "("? Every "{"?
+4. Is every ":" outside of bracketed labels (only allowed in sequenceDiagram messages, classDiagram relations, and stateDiagram transitions)?
+5. Is every edge / child on its own line?
+6. Are there at least 4 substantive nodes?
+If any answer is no, FIX IT before emitting.`;
 
 const SYSTEM_PROMPT = `You are a scientific visualization generator for a live research-companion slide deck. Each turn you produce ONE slide that makes the user smarter about the paper. Bias hard toward STRUCTURED, INFORMATION-DENSE visuals — never a bare restatement of the topic.
 
