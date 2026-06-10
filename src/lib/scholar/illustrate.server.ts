@@ -853,7 +853,10 @@ TABLE SHAPE (when kind=table): 3-6 columns, 3-8 rows of substantive content. Eve
 
 MATH SHAPE (when kind=math): each step is a KaTeX string (no $ delimiters). Use \\frac, \\sum, etc.
 
-CHART SHAPE (when kind=chart): 8-15 realistic illustrative points per series.`;
+CHART SHAPE (when kind=chart):
+- 8-15 realistic illustrative points per series.
+- "xLabel" and "yLabel" are MANDATORY, non-empty, descriptive strings (e.g. "Sequence length (tokens)", "Latency (ms)"). NEVER leave them blank, NEVER use generic placeholders like "X" or "Y" or "value". Include units when applicable.
+- The chart MUST be readable as a standalone figure: a viewer should understand what each axis measures from the labels alone.`;
 
 /** Pick the concrete kind to ask the strict-output model for. Never callout. */
 export function pickStrictKind(input: IllustrateInput): StrictKind {
