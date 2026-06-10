@@ -62,10 +62,7 @@ export interface ResearchRunResult {
   result: ResearchResult;
   attempts: number;
   warnings: string[];
-  /**
-   * Kept for API compatibility with the previous tool-using implementation.
-   * Gemini's googleSearch grounding is opaque, so this is always 0.
-   */
+  /** Kept for API compatibility; always 0 now that search grounding is disabled. */
   toolCalls: number;
 }
 
