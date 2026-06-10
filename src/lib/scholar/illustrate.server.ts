@@ -934,6 +934,14 @@ Produce the JSON object for this kind with concrete, information-dense content.`
   if (!check.ok) {
     throw new Error(`Strict visual failed downstream validation: ${check.reason}`);
   }
+  if (visual.kind === "chart") {
+    const bad = (s?: string) => !s || !s.trim() || /^(x|y|value|label|axis|tbd|n\/a)$/i.test(s.trim());
+    if (bad(visual.chart?.xLabel) || bad(visual.chart?.yLabel)) {
+      throw new Error(
+        `Strict chart missing descriptive axis labels (xLabel=${JSON.stringify(visual.chart?.xLabel)}, yLabel=${JSON.stringify(visual.chart?.yLabel)})`,
+      );
+    }
+  }
   return visual;
 }
 
