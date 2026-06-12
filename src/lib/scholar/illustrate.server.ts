@@ -699,11 +699,27 @@ QUALITY BAR:
 - "narration" ≤20 words, references concrete content.
 - "title" ≤60 chars, specific.
 
+JSON OUTPUT DISCIPLINE (CRITICAL — prevents validation failures):
+- Keep every string TIGHT. Long strings full of backslashes blow past the token budget and produce truncated JSON that fails strict validation.
+- Inside JSON strings, every backslash MUST be written as \\\\ (two source chars → one decoded backslash). Newlines MUST be written as \\n. No raw control characters in string values.
+
 ${MERMAID_DIAGRAM_GUIDE}
 
 TABLE SHAPE (when kind=table): 3-6 columns, 3-8 rows of substantive content. Every row MUST have exactly the same number of cells as the columns array.
 
-MATH SHAPE (when kind=math): each step is a KaTeX string (no $ delimiters). Use \\frac, \\sum, etc.
+MATH SHAPE (when kind=math) — KATEX SKILL (study carefully):
+- 3-5 steps MAXIMUM. Each step is ONE focused KaTeX expression, NOT a paragraph.
+- Use proper LaTeX commands with backslashes: \\\\frac{a}{b}, \\\\sum_{i=1}^{n}, \\\\min_{x \\\\in S}, \\\\sqrt{x}, \\\\le, \\\\ge, \\\\approx, \\\\in, \\\\subseteq, \\\\setminus, \\\\cdot, \\\\lambda, \\\\alpha, \\\\bar{S}, \\\\mathbb{R}, \\\\mathcal{O}.
+- Subscripts/superscripts use braces: x_{i}, n^{2}, \\\\lambda_{2}(G).
+- Prefer PURE mathematical notation. AVOID \\\\text{...} blocks for prose — put English explanations in "narration" or the "inline" caption, NEVER inline inside the equations.
+- Every command needs its backslashes: \\\\frac (not "frac"), \\\\setminus (not "setminus"), \\\\bar{S} (not "bar S").
+- NO $ delimiters around expressions.
+- "inline" is a short plain-English caption (or empty string), NOT more math.
+- GOOD example (Cheeger constant), three steps:
+    "h(G) = \\\\min_{S \\\\subseteq V,\\\\, 0 < |S| \\\\le |V|/2} \\\\frac{|E(S, \\\\bar{S})|}{|S|}"
+    "\\\\lambda_{2}(G) \\\\le 2\\\\, h(G)"
+    "h(G) \\\\ge \\\\frac{\\\\lambda_{2}(G)}{2}"
+- BAD example (DO NOT emit): "\\\\text{For a }d\\\\text{-regular graph: }h(G) \\\\ge d - 2\\\\sqrt{d-1}" — strip the \\\\text wrappers, move prose to narration, keep step as "h(G) \\\\ge d - 2\\\\sqrt{d - 1}".
 
 CHART SHAPE (when kind=chart):
 - 8-15 realistic illustrative points per series.
