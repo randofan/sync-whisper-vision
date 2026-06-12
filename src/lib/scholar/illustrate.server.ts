@@ -774,7 +774,13 @@ Produce the JSON object for this kind with concrete, information-dense content.`
       },
     },
     temperature: 0.5,
+    // Default Groq max_tokens is small (~1024) and routinely truncates
+    // math/diagram strings full of backslashes, which then fail strict-mode
+    // JSON validation with an empty `failed_generation`. Give the model
+    // headroom for fully-escaped KaTeX and multi-line mermaid sources.
+    max_tokens: 8192,
   };
+
 
   const res = await fetchImpl(`${GROQ_BASE_URL}/chat/completions`, {
     method: "POST",
